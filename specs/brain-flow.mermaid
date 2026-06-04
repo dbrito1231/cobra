@@ -1,0 +1,190 @@
+flowchart TD
+    A([User Input\nVoice or Text]) --> INPUT
+
+    %% Input Mode Layer
+    subgraph INPUT [Input Mode Layer]
+        direction TB
+        I1{Voice or Text?}
+        I2[Whisper Transcription]
+        I3{Confidence\nCheck}
+        I4[Ask user to\nrepeat or confirm]
+        I5[Clean Text]
+        I1 -->|Voice| I2 --> I3
+        I3 -->|Low confidence| I4 --> I2
+        I3 -->|OK| I5
+        I1 -->|Text| I5
+    end
+
+    I5 --> R[Internal Reasoning\nThink-first — silent\nProduces execution plan]
+
+    %% Shared Context State
+    subgraph CONTEXT [Shared Context State — Read-only across all steps]
+        direction LR
+        CA1[Time / Date]
+        CA2[Current Task\nUser declares or auto-detected]
+        CA3[Mood + Energy\nDeclared or inferred]
+    end
+
+    R --> CONTEXT
+    CONTEXT --> B
+
+    %% Router
+    B[Router] --> C{Rule-Based\nClassification}
+    C -->|Clear intent| D[Route Selected]
+    C -->|Ambiguous| E[LLM Classification]
+    E -->|Still uncertain| F[Ask for Clarification\n2-3 options + custom input]
+    F --> A
+    E -->|Intent clear| D
+
+    %% Pattern Learning
+    B <-->|Learns patterns\nover time| PL[(Pattern Memory)]
+
+    %% Sequential Pipeline
+    D --> PIPELINE
+
+    subgraph PIPELINE [Sequential Execution Pipeline]
+        direction TB
+        P1[1. Memory Retrieval\nRead index.md → fetch wiki pages\n+ vector search] --> P2[2. Tool Execution\nFetch external data if needed]
+        P2 --> P3{3. Correction\nTriggered?}
+        P3 -->|Auto-detected claim\nor manual request| P4[Verification Pipeline]
+        P3 -->|No| P5[4. Personality Mirror\nFilter through user voice]
+        P4 --> P5
+        P5 --> P6[5. Response Synthesis\nAssemble final answer]
+    end
+
+    %% Verification Pipeline
+    subgraph VERIFY [Verification Pipeline]
+        direction TB
+        V1[Construct sanitized\ntopic-only query] --> V2[Query Claude API]
+        V2 -->|Not found or timeout| V3[Query Copilot API]
+        V3 -->|Not found or timeout| V4[Query MCP Servers]
+        V4 --> V5{2+ sources\nagree?}
+        V5 -->|Yes| V6[Surface Correction\nwith Citations]
+        V5 -->|Sources conflict| V7[Surface Conflict\nto User — user decides]
+        V5 -->|Less than 2 agree| V8[Suppress Correction\nStay silent]
+        V6 --> V9[(Store as Verified Fact\nin Wiki — permanent)]
+        V8 --> V10[(Store as Non-finding\n30-day TTL)]
+        V7 --> V9
+    end
+
+    P4 --> VERIFY
+    VERIFY -->|Correction or null signal| P5
+
+    %% Memory Architecture
+    subgraph MEMORY [Memory Architecture — Fully Local]
+        direction TB
+        subgraph RAW [Layer 1 — Raw Logs]
+            M0[(Immutable\nConversation Logs)]
+        end
+        subgraph WIKI [Layer 2 — Wiki]
+            direction TB
+            W1[You Page]
+            W2[Preferences Page]
+            W3[Verified Facts Page]
+            W4[Topics Pages]
+            W5[Decisions Page]
+            W6[Non-findings Page]
+            W7[index.md]
+            W8[log.md]
+        end
+        subgraph VECTOR [Layer 3 — Vector DB]
+            M1[(Embeddings\nChromaDB)]
+        end
+        M0 -->|End of session\ningest| WIKI
+        WIKI -->|Auto-updated| M1
+    end
+
+    P1 <-->|Read index + wiki pages| WIKI
+    P1 <-->|Semantic search| M1
+
+    %% Session Summarizer
+    subgraph SUMMARIZE [Session Summarizer]
+        direction TB
+        S1[Split by topic shift\nor fixed count fallback]
+        S2[Summarize each segment]
+        S3[Generate meta-summary]
+        S4[Store segments +\nmeta-summary]
+        S1 --> S2 --> S3 --> S4
+    end
+
+    P6 --> SUMMARIZE
+    SUMMARIZE -->|Drives wiki ingest| M0
+
+    %% Wiki Operations
+    subgraph WIKIOPS [Wiki Operations]
+        direction TB
+        WO1[Ingest — end of session\nUpdate all relevant pages]
+        WO2[Query — index first\nthen drill into pages\nFile useful answers back]
+        WO3[Lint — daily\nContradictions, stale claims\nOrphans, gaps]
+    end
+
+    MEMORY --- WIKIOPS
+
+    %% Proactivity Engine
+    subgraph PROACTIVE [Proactivity Engine — Event-Driven]
+        direction TB
+        PR1[Session Buffer\nIntra-session patterns]
+        PR2[Wiki + Vector DB\nCross-session patterns]
+        PR3[Queue items\nPriority ordered]
+        PR4[Dormant\nWaiting for event]
+        PR5{Conversation complete\nevent received?}
+        PR6{Items queued\n+ silence?}
+        PR7[Surface one item\nmost important first]
+        PR1 & PR2 --> PR3 --> PR4
+        PR4 -->|Event fired by\nResponse Synthesis| PR5
+        PR5 -->|Yes| PR6
+        PR5 -->|No| PR4
+        PR6 -->|Yes or user asks| PR7
+        PR6 -->|No silence yet| PR4
+    end
+
+    P6 -->|Fires conversation\ncomplete event| PR5
+    P6 -->|Completed exchange| PR1
+    M1 -.->|Monitors for triggers| PR2
+    PR7 --> FINAL
+
+    %% Reasoning check
+    P6 --> CHECK{Can answer?}
+    CHECK -->|No| FAIL[I don't know,\nbut here's where I'd look]
+    CHECK -->|Yes| FINAL[Final Response\nPersonality filtered\nin user's voice]
+
+    FAIL --> V([C.O.B.R.A. Response])
+    FINAL --> V
+
+    %% Personality Model
+    subgraph PERSONALITY [Personality Model]
+        direction TB
+        PE1[Seed Document]
+        PE2[Structured Interviews]
+        PE3[Behavioral Logging]
+        PE1 & PE2 & PE3 --> PE4[You Wiki Page\nAll contexts — evolving]
+    end
+
+    P5 <-->|Applies| PERSONALITY
+    SUMMARIZE -.->|Updates over time| PERSONALITY
+
+    %% Privacy Hard Rule
+    subgraph PRIVACY [Privacy Hard Rule — Enforced Everywhere]
+        PR_1[External APIs get topic only\nNever the person]
+        PR_2[Fresh queries constructed from scratch\nRaw logs never sent externally]
+        PR_3[Personal data requires\nexplicit per-request approval]
+        PR_4[Full reset available\non user request]
+    end
+
+    P2 -.->|Enforced by| PRIVACY
+    VERIFY -.->|Enforced by| PRIVACY
+
+    %% Styling
+    classDef hard fill:#ff4d4d,color:#fff,stroke:#cc0000
+    classDef memory fill:#4d94ff,color:#fff,stroke:#0055cc
+    classDef pipeline fill:#00b386,color:#fff,stroke:#007a5e
+    classDef io fill:#f5a623,color:#fff,stroke:#c47d00
+    classDef wiki fill:#9b59b6,color:#fff,stroke:#6c3483
+    classDef reasoning fill:#e67e22,color:#fff,stroke:#a04000
+
+    class PR_1,PR_2,PR_3,PR_4 hard
+    class M0,M1 memory
+    class P1,P2,P3,P5,P6 pipeline
+    class A,V io
+    class W1,W2,W3,W4,W5,W6,W7,W8 wiki
+    class R reasoning
