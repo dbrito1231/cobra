@@ -295,4 +295,29 @@ This rule applies to every component of the brain without exception.
 
 ---
 
+## Component Specs
+
+Decomposed, implementable specs live in **`specs/brain/`**. The parent document and [brain-flow.mermaid](brain-flow.mermaid) remain authoritative sources; component files add boundaries and implementation detail without removing content from either source.
+
+| Spec | Description |
+|------|-------------|
+| [brain/brain-overview.md](brain/brain-overview.md) | Overall brain component index and cross-cutting rules |
+| [brain/implementation-plan.md](brain/implementation-plan.md) | Phased implementation plan |
+| [brain/input-mode-layer.md](brain/input-mode-layer.md) | Voice and text input normalization |
+| [brain/model-layer.md](brain/model-layer.md) | Model-agnostic LLM access (LM Studio) |
+| [brain/reasoning.md](brain/reasoning.md) | Internal think-first reasoning |
+| [brain/router.md](brain/router.md) | Intent classification and routing |
+| [brain/context-awareness.md](brain/context-awareness.md) | Shared context state (time, task, mood) |
+| [brain/memory-architecture.md](brain/memory-architecture.md) | Raw logs, wiki, vector DB |
+| [brain/session-summarizer.md](brain/session-summarizer.md) | End-of-session summarization |
+| [brain/wiki-operations.md](brain/wiki-operations.md) | Wiki ingest, query, lint |
+| [brain/sequential-execution-pipeline.md](brain/sequential-execution-pipeline.md) | Sequential Execution Pipeline (`P1`–`P6`) |
+| [brain/verification-pipeline.md](brain/verification-pipeline.md) | Verification Pipeline |
+| [brain/personality-model.md](brain/personality-model.md) | Personality Model |
+| [brain/proactivity-engine.md](brain/proactivity-engine.md) | Proactivity Engine |
+| [brain/failure-handling.md](brain/failure-handling.md) | Failure and final response paths |
+| [brain/privacy.md](brain/privacy.md) | Privacy hard rule (master) |
+
+---
+
 *This spec is a living document. No implementation begins without user approval.*

@@ -1,0 +1,102 @@
+flowchart TD
+    A([C.O.B.R.A. decides to use a tool]) --> B{What type\nof action?}
+
+    %% Read-only path
+    B -->|Read-only| C[Execute automatically\nNo approval needed]
+    C --> D{Tool chain\ncontinues?}
+    D -->|Yes - next step| B
+    D -->|No| SUCCESS
+
+    %% Destructive path
+    B -->|Destructive /\nIrreversible| E[Stop — explain to user\nwhat will be done and why]
+    E --> F{User approves?}
+    F -->|No| DENIED([Action cancelled])
+    F -->|Yes| G[Execute tool\nin sandbox]
+
+    %% Code execution special rule
+    B -->|Code execution| H[Show code to user\nAlways — no exceptions]
+    H --> I{User approves?}
+    I -->|No| DENIED
+    I -->|Yes| G
+
+    %% Communication special rule
+    B -->|Communication| J[Draft message only\nNever send automatically]
+    J --> K([User sends manually])
+
+    %% Sandbox execution
+    G --> L{Sandboxed\nby default?}
+    L -->|Yes - default| M[Run in sandbox]
+    L -->|No - user override| N[Run with full\nsystem access\nNotify user]
+    M & N --> O{Execution\nresult?}
+
+    %% Failure handling
+    O -->|Failure| P[Retry once\nautomatically]
+    P --> Q{Retry\nresult?}
+    Q -->|Success| SUCCESS
+    Q -->|Still failing| R[Report failure to user\nAsk how to proceed]
+    R --> S([User decides\nnext action])
+
+    %% Success path
+    O -->|Success| SUCCESS([Tool execution complete])
+
+    %% Tool chaining
+    SUCCESS --> T{More tools\nin chain?}
+    T -->|Yes| B
+    T -->|No| LOG
+
+    %% Logging
+    LOG[Log to wiki\nTool + action + outcome + timestamp] --> U([Return result\nto brain pipeline])
+
+    %% Extensibility
+    subgraph EXTEND [Adding a New Tool]
+        direction TB
+        E1[User describes\nnew tool in plain language]
+        E2[C.O.B.R.A. asks\nclarifying questions]
+        E3[C.O.B.R.A. proposes\ntool design]
+        E4{User approves\ndesign?}
+        E5[C.O.B.R.A. builds\nand registers tool]
+        E6[Tool available immediately\nFollows all rules automatically]
+        E7([Design rejected\nRevise or cancel])
+        E1 --> E2 --> E3 --> E4
+        E4 -->|Yes| E5 --> E6
+        E4 -->|No| E7
+    end
+
+    %% Privacy rule
+    subgraph PRIVACY [Privacy Hard Rule]
+        PR1[Outbound tool calls sanitized\nTopic only — never personal context]
+        PR2[Communication drafts\nstay local until user sends]
+        PR3[Tool logs stored\nlocally only]
+    end
+
+    C -.->|Enforced by| PRIVACY
+    G -.->|Enforced by| PRIVACY
+    J -.->|Enforced by| PRIVACY
+
+    %% Tool Memory
+    subgraph MEMORY [Tool Memory — Wiki]
+        direction TB
+        TM1[Tool used]
+        TM2[Action taken]
+        TM3[Outcome]
+        TM4[Timestamp]
+        TM5[Improves future\ntool selection]
+        TM1 & TM2 & TM3 & TM4 --> TM5
+    end
+
+    LOG -.->|Feeds| MEMORY
+
+    %% Styling
+    classDef approval fill:#f5a623,color:#fff,stroke:#c47d00
+    classDef execute fill:#00b386,color:#fff,stroke:#007a5e
+    classDef hard fill:#ff4d4d,color:#fff,stroke:#cc0000
+    classDef memory fill:#4d94ff,color:#fff,stroke:#0055cc
+    classDef io fill:#2ecc71,color:#fff,stroke:#27ae60
+    classDef denied fill:#e74c3c,color:#fff,stroke:#c0392b
+
+    class E,H,J approval
+    class C,G,M,N execute
+    class PR1,PR2,PR3 hard
+    class TM1,TM2,TM3,TM4,TM5 memory
+    class SUCCESS,U,K io
+    class DENIED,S denied
