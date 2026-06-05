@@ -1,0 +1,115 @@
+flowchart TD
+    A([C.O.B.R.A. Running]) --> B[Security layer active]
+
+    %% Auto-lock
+    subgraph AUTOLOCK [Auto-Lock]
+        direction TB
+        AL1{Auto-lock timeout configured?}
+        AL2[Monitor for inactivity]
+        AL3{Timeout expired?}
+        AL4[Lock C.O.B.R.A.\nDisable voice and text input\nShow lock screen in UI]
+        AL5{User interacts\nwith UI?}
+        AL6[Unlock - Resume normal operation]
+        AL1 -->|Yes| AL2 --> AL3
+        AL3 -->|No| AL2
+        AL3 -->|Yes| AL4 --> AL5
+        AL5 -->|Yes| AL6
+        AL5 -->|No| AL4
+        AL1 -->|No - disabled| AL2
+    end
+
+    B --> AUTOLOCK
+
+    %% Outbound request flow
+    subgraph OUTBOUND [Every Outbound Request]
+        direction TB
+        OB1[Request initiated by pipeline]
+        OB2[Check destination against known list]
+        OB3{Known destination?}
+        OB4[Allow request to proceed]
+        OB5[Block connection attempt]
+        OB6[Alert user immediately\nVoice + Chat UI]
+        OB7[Log to anomaly record]
+        OB1 --> OB2 --> OB3
+        OB3 -->|Yes - Claude, Copilot, MCP, LM Studio| OB4
+        OB3 -->|No - unexpected| OB5 --> OB6 --> OB7
+    end
+
+    B --> OUTBOUND
+
+    %% Audit logging
+    subgraph AUDIT [Outbound Audit Log - Every Request]
+        direction TB
+        AU1[Timestamp]
+        AU2[Destination]
+        AU3[Sanitized query sent]
+        AU4[Pipeline step trigger]
+        AU5[Approval status]
+        AU6[Outcome]
+        AU7[Stored at cobra/logs/outbound-audit.log\nLocally only - never sent externally]
+        AU1 & AU2 & AU3 & AU4 & AU5 & AU6 --> AU7
+    end
+
+    OB4 --> AUDIT
+
+    %% Network access
+    subgraph NETWORK [Network Access]
+        direction TB
+        NW1{Network config}
+        NW2[Bind to local network interface\nAll home devices can connect]
+        NW3[Bind to localhost only\nThis machine only]
+        NW4[No internet exposure\nNot accessible outside home network]
+        NW1 -->|local_network| NW2
+        NW1 -->|localhost_only| NW3
+        NW2 & NW3 --> NW4
+    end
+
+    B --> NETWORK
+
+    %% Data protection
+    subgraph DATA [Data Protection]
+        direction TB
+        DP1[Wiki files]
+        DP2[Memory and vector DB]
+        DP3[Config file and API keys]
+        DP4[Voice model and samples]
+        DP5[Logs]
+        DP6[OS file permissions only\nOwned by user account]
+        DP1 & DP2 & DP3 & DP4 & DP5 --> DP6
+    end
+
+    B --> DATA
+
+    %% Known destinations
+    subgraph KNOWN [Known Outbound Destinations - Not Flagged]
+        direction LR
+        KD1[Claude API]
+        KD2[Copilot API]
+        KD3[Configured MCP servers]
+        KD4[LM Studio local API]
+    end
+
+    OB2 --- KNOWN
+
+    %% Privacy rule
+    subgraph PRIVACY [Privacy Hard Rule]
+        PR1[Audit logs contain sanitized queries only\nNever raw personal data]
+        PR2[No security telemetry sent externally]
+        PR3[Anomaly alerts displayed locally only]
+    end
+
+    AUDIT -.->|Enforced by| PRIVACY
+    OB6 -.->|Enforced by| PRIVACY
+
+    %% Styling
+    classDef hard fill:#ff4d4d,color:#fff,stroke:#cc0000
+    classDef security fill:#e74c3c,color:#fff,stroke:#c0392b
+    classDef safe fill:#2ecc71,color:#fff,stroke:#27ae60
+    classDef warning fill:#f5a623,color:#fff,stroke:#c47d00
+    classDef log fill:#4d94ff,color:#fff,stroke:#0055cc
+
+    class PR1,PR2,PR3 hard
+    class AL4,OB5,OB6,OB7 security
+    class OB4,AL6 safe
+    class OB3 warning
+    class AU1,AU2,AU3,AU4,AU5,AU6,AU7 log

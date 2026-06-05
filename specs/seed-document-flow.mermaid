@@ -1,0 +1,112 @@
+flowchart TD
+    A([First Launch or Interview Command]) --> B{Seed document exists?}
+    B -->|No| C[Begin Stage 1 interview]
+    B -->|Yes| D[Resume from last completed stage]
+
+    %% Stage flow
+    subgraph STAGES [Interview Stages - One per session]
+        direction TB
+        S1[Stage 1 - Communication Style and Tone]
+        S2[Stage 2 - Decision-Making Patterns]
+        S3[Stage 3 - Values and Beliefs]
+        S4[Stage 4 - Humor and Personality Quirks]
+        S5[Stage 5+ - Additional dimensions]
+        S1 --> S2 --> S3 --> S4 --> S5
+    end
+
+    C --> STAGES
+    D --> STAGES
+
+    %% Per-stage interview flow
+    subgraph INTERVIEW [Per-Stage Interview Flow]
+        direction TB
+        I1[C.O.B.R.A. introduces dimension]
+        I2[Ask one question at a time]
+        I3[User answers in own words]
+        I4[C.O.B.R.A. reflects back understanding]
+        I5{User confirms?}
+        I6[Correction noted - rephrase]
+        I7{More questions in stage?}
+        I8[C.O.B.R.A. writes stage summary]
+        I9[User reviews summary]
+        I10{Summary approved?}
+        I11[Edit and rewrite]
+        I12[Store dimension in You wiki page]
+        I1 --> I2 --> I3 --> I4 --> I5
+        I5 -->|No| I6 --> I2
+        I5 -->|Yes| I7
+        I7 -->|Yes| I2
+        I7 -->|No| I8 --> I9 --> I10
+        I10 -->|No| I11 --> I9
+        I10 -->|Yes| I12
+    end
+
+    STAGES --> INTERVIEW
+
+    %% You wiki page
+    subgraph WIKI [You Wiki Page - cobra/wiki/you.md]
+        direction TB
+        W1[Communication Style]
+        W2[Decision-Making]
+        W3[Values and Beliefs]
+        W4[Humor and Personality]
+        W5[Context-Specific Behavior]
+        W6[Observed Patterns - auto-populated]
+        W7[Version history tracks all changes]
+        W1 & W2 & W3 & W4 & W5 & W6 --> W7
+    end
+
+    I12 --> WIKI
+
+    %% Living document updates
+    subgraph LIVING [Automatic Updates Over Time]
+        direction TB
+        LV1[New behavioral pattern observed]
+        LV2[C.O.B.R.A. updates relevant dimension]
+        LV3[Contradiction detected with existing entry]
+        LV4[Reconcile - newer observation wins]
+        LV5[Version history updated]
+        LV1 --> LV2 --> LV5
+        LV3 --> LV4 --> LV5
+    end
+
+    WIKI -.->|Feeds| LIVING
+    LIVING -.->|Updates| WIKI
+
+    %% User override
+    subgraph OVERRIDE [User Manual Override]
+        direction TB
+        OV1[User views You page in wiki browser]
+        OV2[User identifies incorrect section]
+        OV3[User edits or overrides section]
+        OV4[C.O.B.R.A. acknowledges override]
+        OV5[Override stored as authoritative]
+        OV1 --> OV2 --> OV3 --> OV4 --> OV5
+    end
+
+    WIKI --- OVERRIDE
+
+    %% Minimum viable baseline
+    subgraph MVP [Minimum Viable Seed Document]
+        direction TB
+        MV1{Stages 1-4 complete?}
+        MV2[C.O.B.R.A. personality model active]
+        MV3[C.O.B.R.A. prompts to complete remaining stages]
+        MV1 -->|Yes| MV2
+        MV1 -->|No| MV3 --> STAGES
+    end
+
+    I12 --> MVP
+
+    %% Styling
+    classDef stage fill:#9b59b6,color:#fff,stroke:#6c3483
+    classDef interview fill:#00b386,color:#fff,stroke:#007a5e
+    classDef wiki fill:#4d94ff,color:#fff,stroke:#0055cc
+    classDef living fill:#e67e22,color:#fff,stroke:#a04000
+    classDef io fill:#f5a623,color:#fff,stroke:#c47d00
+
+    class S1,S2,S3,S4,S5 stage
+    class I1,I2,I3,I4,I8 interview
+    class W1,W2,W3,W4,W5,W6 wiki
+    class LV1,LV2,LV3,LV4 living
+    class A,MV2 io

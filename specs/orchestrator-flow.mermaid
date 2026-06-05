@@ -1,0 +1,145 @@
+flowchart TD
+    A([C.O.B.R.A. Launch]) --> PHASE1
+
+    %% Startup phases
+    subgraph PHASE1 [Phase 1 - No Dependencies]
+        P1[Configuration\nLoad and validate]
+    end
+
+    PHASE1 --> PHASE2
+
+    subgraph PHASE2 [Phase 2 - Parallel - Depends on Config]
+        P2A[Security\nInitialize]
+        P2B[MCP Server Layer\nConnect and validate servers]
+    end
+
+    PHASE2 --> PHASE3
+
+    subgraph PHASE3 [Phase 3 - Parallel - Depends on Config and MCP]
+        P3A[Brain\nInitialize]
+        P3B[Tools\nInitialize]
+        P3C{LM Studio\nreachable?}
+        P3D[Wait indefinitely\nUser can cancel]
+        P3C -->|No| P3D --> P3C
+        P3C -->|Yes| P3A
+        P3C -->|Yes| P3B
+    end
+
+    PHASE3 --> PHASE4
+
+    subgraph PHASE4 [Phase 4 - Depends on Brain]
+        P4A[Voice Layer\nInitialize]
+        P4B[Chat UI\nStart local web server]
+    end
+
+    PHASE4 --> READY([C.O.B.R.A. Ready])
+
+    %% Component registry
+    subgraph REGISTRY [Component Registry]
+        direction TB
+        R1[Configuration - healthy]
+        R2[Security - healthy]
+        R3[MCP Server Layer - healthy]
+        R4[Brain - healthy]
+        R5[Voice Layer - healthy]
+        R6[Chat UI - healthy]
+        R7[Tools - healthy]
+    end
+
+    READY --> REGISTRY
+
+    %% Health monitoring
+    subgraph HEALTH [Continuous Health Monitoring]
+        direction TB
+        H1[Ping all components\nat defined interval]
+        H2{All healthy?}
+        H3[Mark component degraded or failed]
+        H4[Alert user immediately\nVoice and Chat UI]
+        H5[Ask user what to do]
+        H1 --> H2
+        H2 -->|Yes| H1
+        H2 -->|No| H3 --> H4 --> H5
+    end
+
+    READY --> HEALTH
+
+    %% User decision on failure
+    subgraph FAILURE [Failure Response - User Decides]
+        direction TB
+        F1{User choice}
+        F2[Restart this component only]
+        F3[Ignore - mark unavailable\nContinue with rest]
+        F4[Restart all of C.O.B.R.A.]
+        F5[Restart component]
+        F6{Restart successful?}
+        F7[Mark healthy - resume]
+        F8[Ask user again]
+        F1 -->|Restart component| F2 --> F5
+        F1 -->|Ignore| F3
+        F1 -->|Full restart| F4
+        F5 --> F6
+        F6 -->|Yes| F7
+        F6 -->|No| F8 --> F1
+        F4 --> A
+    end
+
+    H5 --> FAILURE
+
+    %% Inter-component communication
+    subgraph COMMS [Inter-Component Communication]
+        direction TB
+        C1[Components publish events\nto Orchestrator]
+        C2[Orchestrator routes events\nto relevant subscribers]
+        C3[No direct component-to-component\ncommunication]
+        C1 --> C2 --> C3
+    end
+
+    READY --- COMMS
+
+    %% Lifecycle logging
+    subgraph LOG [Lifecycle Log - cobra/logs/orchestrator.log]
+        direction TB
+        L1[Component name]
+        L2[Event type - Start, Stop, Fail, Recover]
+        L3[Timestamp]
+        L4[Trigger]
+        L5[Outcome]
+        L1 & L2 & L3 & L4 & L5
+    end
+
+    HEALTH -.->|Logs all events| LOG
+    FAILURE -.->|Logs all events| LOG
+
+    %% Graceful shutdown
+    subgraph SHUTDOWN [Graceful Shutdown]
+        direction TB
+        SD1[Shutdown signal received]
+        SD2[Wait for current response to finish]
+        SD3[Trigger session summarization in brain]
+        SD4[Stop Chat UI]
+        SD5[Stop Voice Layer]
+        SD6[Stop Tools]
+        SD7[Stop Brain - complete memory write]
+        SD8[Disconnect MCP Server Layer]
+        SD9[Finalize Security audit log]
+        SD10[Save Configuration state]
+        SD11([C.O.B.R.A. exits cleanly\nNo data lost])
+        SD1 --> SD2 --> SD3 --> SD4 --> SD5 --> SD6 --> SD7 --> SD8 --> SD9 --> SD10 --> SD11
+    end
+
+    READY -.->|User triggers shutdown| SHUTDOWN
+
+    %% Styling
+    classDef phase fill:#9b59b6,color:#fff,stroke:#6c3483
+    classDef healthy fill:#2ecc71,color:#fff,stroke:#27ae60
+    classDef warning fill:#f5a623,color:#fff,stroke:#c47d00
+    classDef failed fill:#e74c3c,color:#fff,stroke:#c0392b
+    classDef log fill:#4d94ff,color:#fff,stroke:#0055cc
+    classDef io fill:#f5a623,color:#fff,stroke:#c47d00
+
+    class P1,P2A,P2B,P3A,P3B,P4A,P4B phase
+    class R1,R2,R3,R4,R5,R6,R7,F7 healthy
+    class H3,F3 warning
+    class H4,H5,F8 failed
+    class L1,L2,L3,L4,L5 log
+    class A,READY io
