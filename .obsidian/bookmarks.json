@@ -1,0 +1,71 @@
+{
+  "items": [
+    {
+      "type": "group",
+      "title": "Agents",
+      "items": [
+        {
+          "type": "file",
+          "ctime": 1749096000000,
+          "path": "agents/AGENTS.md",
+          "title": "Lead Developer"
+        },
+        {
+          "type": "file",
+          "ctime": 1749096000001,
+          "path": "agents/config-agent.md"
+        },
+        {
+          "type": "file",
+          "ctime": 1749096000002,
+          "path": "agents/security-agent.md"
+        },
+        {
+          "type": "file",
+          "ctime": 1749096000003,
+          "path": "agents/mcp-agent.md"
+        },
+        {
+          "type": "file",
+          "ctime": 1749096000004,
+          "path": "agents/brain-agent.md"
+        },
+        {
+          "type": "file",
+          "ctime": 1749096000005,
+          "path": "agents/tools-agent.md"
+        },
+        {
+          "type": "file",
+          "ctime": 1749096000006,
+          "path": "agents/voice-agent.md"
+        },
+        {
+          "type": "file",
+          "ctime": 1749096000007,
+          "path": "agents/chat-ui-agent.md"
+        },
+        {
+          "type": "file",
+          "ctime": 1749096000008,
+          "path": "agents/orchestrator-agent.md"
+        },
+        {
+          "type": "file",
+          "ctime": 1749096000009,
+          "path": "agents/spec-sync-agent.md"
+        },
+        {
+          "type": "folder",
+          "ctime": 1749096000010,
+          "path": "agents"
+        },
+        {
+          "type": "file",
+          "ctime": 1749096000011,
+          "path": "plans/plan-create-agents.md"
+        }
+      ]
+    }
+  ]
+}
