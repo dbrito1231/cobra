@@ -1,0 +1,120 @@
+flowchart TD
+    A([C.O.B.R.A. Running - Passive listening mode]) --> B[Wake word detection - Running locally at all times]
+
+    B --> C{Wake word detected?}
+    C -->|No| B
+    C -->|Yes| D[Play audio cue - Subtle tone confirms listening]
+    D --> E[Capture microphone input locally]
+
+    %% Voice Input Pipeline
+    subgraph INPUT [Voice Input Pipeline]
+        direction TB
+        I1[Whisper transcription - local, no cloud]
+        I2{Confidence acceptable?}
+        I3[Play audio cue again - Ask user to repeat]
+        I4[Clean text output - Passed to brain]
+        I5[Raw audio discarded - Never stored]
+        I1 --> I2
+        I2 -->|Low confidence| I3 --> I1
+        I2 -->|OK| I4 --> I5
+    end
+
+    E --> INPUT
+
+    %% Mood inference
+    subgraph MOOD [Mood Inference from Voice]
+        direction TB
+        M1[Analyze speech patterns - pace, pauses, volume]
+        M2[Infer mood and energy]
+        M3[Feed into shared context state]
+        M4[Audio processed in memory - Immediately discarded]
+        M1 --> M2 --> M3
+        M1 --> M4
+    end
+
+    E --> MOOD
+
+    I4 --> BRAIN([Brain processes input])
+
+    %% Voice Output
+    BRAIN --> G[Brain returns response text]
+    G --> O1[Apply speaking speed based on mood inference]
+    O1 --> O2[Generate speech using cloned voice model]
+    O2 --> O3[Play voice response]
+    O2 --> O4[Display text response in Chat UI simultaneously]
+
+    %% Interruption handling
+    subgraph INTERRUPT [Interruption Handling]
+        direction TB
+        IR1[User speaks while C.O.B.R.A. responds]
+        IR2[Input queued]
+        IR3[C.O.B.R.A. finishes full response first]
+        IR4[Process queued input immediately]
+        IR1 --> IR2 --> IR3 --> IR4
+    end
+
+    O3 -.->|If user speaks mid-response| INTERRUPT
+    INTERRUPT --> E
+
+    %% Session continuation
+    O3 --> H{Session end phrase detected?}
+    O4 --> H
+    H -->|No - continue listening| E
+    H -->|Yes - Thats all for now| ACK[C.O.B.R.A. acknowledges - Returns to passive listening]
+    ACK --> A
+
+    %% Voice Cloning Setup
+    subgraph CLONE [Voice Cloning Setup - One Time]
+        direction TB
+        CL1[Guided recording session - 1 hour or more of voice samples]
+        CL2[Samples stored locally - cobra/voice/]
+        CL3[Train local TTS model - Coqui XTTS or equivalent]
+        CL4[Playback test - User approves clone quality]
+        CL5{Quality acceptable?}
+        CL6[Voice model ready]
+        CL7[Record additional samples - Retrain model]
+        CL1 --> CL2 --> CL3 --> CL4 --> CL5
+        CL5 -->|Yes| CL6
+        CL5 -->|No| CL7 --> CL1
+    end
+
+    CL6 -.->|Cloned voice used by| O2
+
+    %% Session lifecycle summary
+    subgraph LIFECYCLE [Session Lifecycle Summary]
+        direction LR
+        LC1[Passive - Wake word only]
+        LC2[Active - Continuous listening]
+        LC3[Responding - Voice and text output]
+        LC1 -->|Wake word| LC2
+        LC2 -->|User speaks| LC3
+        LC3 -->|Response complete| LC2
+        LC2 -->|Session end phrase| LC1
+    end
+
+    A -.->|Follows| LIFECYCLE
+
+    %% Privacy rule
+    subgraph PRIVACY [Audio Privacy Hard Rule]
+        PR1[Raw audio never stored - Transcriptions only]
+        PR2[Voice samples stored locally only - never uploaded]
+        PR3[Cloned voice model local only - never shared]
+        PR4[No cloud audio API used at any point]
+    end
+
+    INPUT -.->|Enforced by| PRIVACY
+    CLONE -.->|Enforced by| PRIVACY
+    MOOD -.->|Enforced by| PRIVACY
+
+    %% Styling
+    classDef hard fill:#ff4d4d,color:#fff,stroke:#cc0000
+    classDef voice fill:#9b59b6,color:#fff,stroke:#6c3483
+    classDef pipeline fill:#00b386,color:#fff,stroke:#007a5e
+    classDef io fill:#f5a623,color:#fff,stroke:#c47d00
+    classDef lifecycle fill:#4d94ff,color:#fff,stroke:#0055cc
+
+    class PR1,PR2,PR3,PR4 hard
+    class O2,O3,CL3,CL6 voice
+    class I1,I4,O1 pipeline
+    class A,BRAIN io
+    class LC1,LC2,LC3 lifecycle

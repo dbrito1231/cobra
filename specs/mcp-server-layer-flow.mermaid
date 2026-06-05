@@ -1,0 +1,137 @@
+flowchart TD
+    A([C.O.B.R.A. Starts]) --> STARTUP
+
+    %% Startup Validation
+    subgraph STARTUP [Startup Validation — All MCP Servers]
+        direction TB
+        S1[Load MCP server list\nfrom config]
+        S2[Connect to all servers\nsimultaneously]
+        S3{Each server:\nreachable?}
+        S4[Check capabilities declared]
+        S5[Check protocol version\ncompatible]
+        S6[Mark server AVAILABLE\nin live registry]
+        S7[Mark server UNAVAILABLE\nNotify user of failure]
+        S1 --> S2 --> S3
+        S3 -->|Yes| S4 --> S5
+        S5 -->|Valid| S6
+        S5 -->|Invalid| S7
+        S3 -->|No| S7
+    end
+
+    S6 & S7 --> REGISTRY
+
+    %% Live Registry
+    subgraph REGISTRY [Live Server Registry]
+        direction TB
+        R1[Server A\nCapabilities + Status]
+        R2[Server B\nCapabilities + Status]
+        R3[Server N\nCapabilities + Status]
+        R1 & R2 & R3
+    end
+
+    REGISTRY --> READY([C.O.B.R.A. Ready\nAll available servers connected])
+
+    %% Incoming call
+    READY --> B([C.O.B.R.A. needs\nMCP capability])
+    B --> C[Check live registry\nfor capable server]
+    C --> D{Server\navailable?}
+    D -->|No available server| UNAVAIL([Notify user\nCapability unavailable])
+
+    %% Approval
+    D -->|Yes| E[Stop — show user:\nWhich server + why\nSanitized query preview]
+    E --> F{User\napproves?}
+    F -->|No| DENIED([Call cancelled\nNothing sent])
+    F -->|Yes| G[Route to server\nSend sanitized query\nTopic only — never personal]
+
+    %% Execution
+    G --> H{Server\nresponds?}
+
+    %% Server down mid-session
+    H -->|No response| DOWN
+
+    subgraph DOWN [Server Down Mid-Session]
+        direction TB
+        D1[Retry silently\nin background]
+        D2{Server\nrecovered?}
+        D3[Resume normal operation\nNotify user]
+        D4[Mark server UNAVAILABLE\nNotify user]
+        D5[Pause pending tasks\nRequiring this server]
+        D1 --> D2
+        D2 -->|Yes| D3
+        D2 -->|No — retry period expired| D4 --> D5
+    end
+
+    D3 --> G
+    D5 --> UNAVAIL
+
+    %% Success path
+    H -->|Success| I[Receive response]
+    I --> LOG
+
+    %% Logging
+    subgraph LOG [MCP Log — Wiki]
+        direction TB
+        L1[Server name + endpoint]
+        L2[Capability invoked]
+        L3[Sanitized query sent]
+        L4[Response summary]
+        L5[Outcome + timestamp]
+        L6[Approval granted or denied]
+        L1 & L2 & L3 & L4 & L5 & L6
+    end
+
+    LOG --> J([Return result\nto brain pipeline])
+
+    %% Routing logic
+    subgraph ROUTING [Routing Logic]
+        direction TB
+        RT1[Capability required\nidentified by brain]
+        RT2[Find server declaring\nthat capability]
+        RT3{Multiple servers\ndeclare same capability?}
+        RT4[Route to first\navailable server]
+        RT5[Route to only\navailable server]
+        RT1 --> RT2 --> RT3
+        RT3 -->|Yes| RT4
+        RT3 -->|No| RT5
+    end
+
+    C --- ROUTING
+
+    %% Config structure
+    subgraph CONFIG [Config — mcp_servers]
+        direction TB
+        CF1[name: Server name]
+        CF2[endpoint: URL]
+        CF3[description]
+        CF4[capabilities: list]
+        CF5[enabled: true/false]
+    end
+
+    S1 --- CONFIG
+
+    %% Privacy rule
+    subgraph PRIVACY [Privacy Hard Rule]
+        PR1[All outbound calls carry\ntopic only — never personal context]
+        PR2[Every call requires\nexplicit user approval]
+        PR3[Logs stored locally only\nnever sent externally]
+    end
+
+    G -.->|Enforced by| PRIVACY
+    LOG -.->|Enforced by| PRIVACY
+
+    %% Styling
+    classDef hard fill:#ff4d4d,color:#fff,stroke:#cc0000
+    classDef ready fill:#2ecc71,color:#fff,stroke:#27ae60
+    classDef validate fill:#00b386,color:#fff,stroke:#007a5e
+    classDef registry fill:#4d94ff,color:#fff,stroke:#0055cc
+    classDef warning fill:#f5a623,color:#fff,stroke:#c47d00
+    classDef denied fill:#e74c3c,color:#fff,stroke:#c0392b
+    classDef io fill:#f5a623,color:#fff,stroke:#c47d00
+
+    class PR1,PR2,PR3 hard
+    class READY,J,D3 ready
+    class S3,S4,S5,S6 validate
+    class R1,R2,R3 registry
+    class S7,D4,D5 warning
+    class DENIED denied
+    class A,B io

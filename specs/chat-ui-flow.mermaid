@@ -1,0 +1,148 @@
+flowchart TD
+    A([C.O.B.R.A. Launches]) --> B[Start local web server - localhost port]
+    B --> C[Open browser at localhost]
+    C --> D([Chat UI Ready - Three panel layout])
+
+    %% Three panel layout
+    subgraph UI [Three Panel Layout]
+        direction LR
+
+        subgraph CHAT [Chat Panel - Left]
+            direction TB
+            CH1[Conversation history]
+            CH2[Inline pipeline indicators]
+            CH3[Approval prompts]
+            CH4[Proactive item cards]
+            CH5[Text input bar]
+            CH1 --> CH2
+            CH2 --> CH3
+            CH3 --> CH4
+            CH4 --> CH5
+        end
+
+        subgraph WIKI [Wiki Browser Panel - Center]
+            direction TB
+            WK1[index.md - default view]
+            WK2[Click page to open]
+            WK3[Formatted markdown view]
+            WK4[Back to index]
+            WK5[Read only - C.O.B.R.A. writes only]
+            WK1 --> WK2 --> WK3 --> WK4
+        end
+
+        subgraph STATUS [Status Panel - Right]
+            direction TB
+            ST1[Active Pipeline Step - live update]
+            ST2[Connected MCP Servers - Online or Offline]
+            ST3[Proactive Items Queue - count and preview]
+            ST4[Tell me now - surface top item]
+            ST1 --- ST2 --- ST3 --> ST4
+        end
+    end
+
+    D --> UI
+
+    %% Top bar
+    subgraph TOPBAR [Top Bar]
+        direction LR
+        TB1[C.O.B.R.A. logo]
+        TB2[Voice Indicator - always visible]
+        TB3[Active profile name]
+        TB4[Search button]
+        TB1 --- TB2 --- TB3 --- TB4
+    end
+
+    D --> TOPBAR
+
+    %% Voice indicator states
+    subgraph VOICE_IND [Voice Indicator States]
+        direction TB
+        VI1[Idle - waiting for wake word]
+        VI2[Listening - active session ready]
+        VI3[Speaking - playing voice response]
+    end
+
+    TB2 --- VOICE_IND
+
+    %% User input flow
+    D --> E{User input method}
+    E -->|Voice| F[Wake word detected - voice layer handles]
+    E -->|Text| G[User types in input bar]
+    F --> H[Input sent to C.O.B.R.A. brain]
+    G --> H
+
+    %% Pipeline indicators
+    H --> PIPELINE
+
+    subgraph PIPELINE [Live Pipeline Step Indicators]
+        direction TB
+        P1[Thinking...]
+        P2[Searching memory...]
+        P3[Running tool - tool name]
+        P4[Verifying claim...]
+        P5[Composing response...]
+        P6[Finalizing...]
+        P1 --> P2 --> P3 --> P4 --> P5 --> P6
+    end
+
+    PIPELINE --> STATUS
+    PIPELINE --> CH2
+
+    %% Approval flow
+    H --> AP{Approval required?}
+    AP -->|Yes| APR[Approval card appears in chat - what, why, what data]
+    APR --> APD{User decision}
+    APD -->|Approve| H
+    APD -->|Deny| DEN([Action cancelled])
+    AP -->|No| RESP
+
+    %% Response delivery
+    H --> RESP[C.O.B.R.A. response ready]
+    RESP --> RV[Voice plays response]
+    RESP --> RT[Text appears in chat simultaneously]
+    RV --> TB2
+    RT --> CH1
+
+    %% Proactive item surfacing
+    RESP --> PRQ{Proactive items queued?}
+    PRQ -->|Yes - conversation complete| PRS[Proactive card appears in chat]
+    PRQ -->|No| E
+    PRS --> E
+
+    %% Search overlay
+    TB4 --> SEARCH
+
+    subgraph SEARCH [Search Overlay]
+        direction TB
+        SR1[Full text search input]
+        SR2[Results update as you type]
+        SR3[Result shows - excerpt, date, session link]
+        SR4[Click result to jump to exchange]
+        SR1 --> SR2 --> SR3 --> SR4
+    end
+
+    %% WebSocket connection
+    subgraph WS [WebSocket - Real-time Updates]
+        direction LR
+        WS1[C.O.B.R.A. backend]
+        WS2[Browser UI]
+        WS1 <-->|Live pipeline steps - MCP status - proactive queue| WS2
+    end
+
+    H -.->|Connected via| WS
+    STATUS -.->|Receives updates from| WS
+
+    %% Styling
+    classDef panel fill:#1a1a2e,color:#e0e0e0,stroke:#4d94ff
+    classDef status fill:#4d94ff,color:#fff,stroke:#0055cc
+    classDef voice fill:#9b59b6,color:#fff,stroke:#6c3483
+    classDef approval fill:#f5a623,color:#fff,stroke:#c47d00
+    classDef io fill:#2ecc71,color:#fff,stroke:#27ae60
+    classDef indicator fill:#00b386,color:#fff,stroke:#007a5e
+
+    class CH1,CH2,CH3,CH4,CH5 panel
+    class ST1,ST2,ST3 status
+    class VI1,VI2,VI3 voice
+    class APR,APD approval
+    class D,DEN io
+    class P1,P2,P3,P4,P5,P6 indicator
