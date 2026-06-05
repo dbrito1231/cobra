@@ -1,0 +1,143 @@
+flowchart TD
+    A([C.O.B.R.A. Starts]) --> B{Config file\nexists?}
+
+    %% First-time setup
+    B -->|No| WIZARD
+
+    subgraph WIZARD [First-Time Setup Wizard]
+        direction TB
+        W1[Check LM Studio\ninstalled and running]
+        W2[Select default model]
+        W3[Enter Claude API key]
+        W4[Enter Copilot API key]
+        W5[Configure MCP servers\noptional]
+        W6[Set default profile name]
+        W7[Set wiki storage location]
+        W8[Set memory/vector DB location]
+        W9[Validate all settings]
+        W10[Write config file]
+        W1 --> W2 --> W3 --> W4 --> W5 --> W6 --> W7 --> W8 --> W9 --> W10
+    end
+
+    W10 --> VALIDATE
+
+    %% Startup validation
+    B -->|Yes| VALIDATE
+
+    subgraph VALIDATE [Startup Validation]
+        direction TB
+        V1[Config file readable]
+        V2[No missing required fields]
+        V3[LM Studio reachable]
+        V4[Model loaded and ready]
+        V5[Claude API key present]
+        V6[Copilot API key present]
+        V7[Wiki directory writable]
+        V8[Memory directory writable]
+        V9[Active profile exists]
+        V1 --> V2 --> V3 --> V4 --> V5 --> V6 --> V7 --> V8 --> V9
+    end
+
+    VALIDATE --> C{All checks\npassed?}
+    C -->|Yes| READY([C.O.B.R.A. Ready])
+    C -->|No — LM Studio unreachable| LM_WAIT
+    C -->|No — other failure| ERR[Report exactly what failed\nand how to fix it]
+    ERR --> A
+
+    %% LM Studio wait loop
+    subgraph LM_WAIT [LM Studio Unavailable]
+        direction TB
+        LM1[Notify user\nLM Studio not available]
+        LM2[Retry connection\nin background]
+        LM3{LM Studio\nnow reachable?}
+        LM4([User cancels\nmanually])
+        LM1 --> LM2 --> LM3
+        LM3 -->|No| LM2
+        LM3 -->|Yes| VALIDATE
+        LM2 -->|User cancels| LM4
+    end
+
+    %% Profile management
+    subgraph PROFILES [Profile Management]
+        direction TB
+        P1[Multiple named profiles]
+        P2[Each profile has own:\nmodel, personality, tools\nwiki, memory, API keys]
+        P3[Switch profile anytime\nApplies immediately]
+        P4[Re-validate on switch]
+        P5[Default profile\nloads on startup]
+        P1 --> P2
+        P3 --> P4
+        P5 --> P3
+    end
+
+    READY --- PROFILES
+
+    %% Hot reload
+    subgraph HOTRELOAD [Hot Reload]
+        direction TB
+        HR1[Config file change\ndetected automatically]
+        HR2[Re-validate\naffected settings]
+        HR3{Valid\nchange?}
+        HR4[Apply immediately\nNotify user]
+        HR5[Alert user\nRevert to last valid value]
+        HR1 --> HR2 --> HR3
+        HR3 -->|Yes| HR4
+        HR3 -->|No| HR5
+    end
+
+    READY --- HOTRELOAD
+
+    %% Backup and restore
+    subgraph BACKUP [Backup and Restore]
+        direction TB
+        BK1[User triggers backup\nvia command]
+        BK2[Timestamped copy saved\nto ~/.cobra/backups/]
+        BK3[Stored locally only]
+        BK4[User triggers restore\nvia command]
+        BK5[Select backup to restore]
+        BK6[Validate restored config]
+        BK7{Valid?}
+        BK8[Apply restored config]
+        BK9[Alert user\nBackup invalid]
+        BK1 --> BK2 --> BK3
+        BK4 --> BK5 --> BK6 --> BK7
+        BK7 -->|Yes| BK8
+        BK7 -->|No| BK9
+    end
+
+    READY --- BACKUP
+
+    %% Config file structure
+    subgraph CONFIG [Config File — ~/.cobra/config.yaml]
+        direction TB
+        CF1[active_profile]
+        CF2[profiles:\nname, model, API keys\nstorage, MCP servers\npersonality, sandbox]
+        CF3[Backups:\n~/.cobra/backups/]
+        CF1 --> CF2
+    end
+
+    READY --- CONFIG
+
+    %% Privacy rule
+    subgraph PRIVACY [Privacy Hard Rule]
+        PR1[Config stored locally only\nNever synced or uploaded]
+        PR2[API keys stored as plain text\nUser controls file access]
+        PR3[Backups local only\nNever uploaded]
+    end
+
+    CONFIG -.->|Enforced by| PRIVACY
+
+    %% Styling
+    classDef hard fill:#ff4d4d,color:#fff,stroke:#cc0000
+    classDef ready fill:#2ecc71,color:#fff,stroke:#27ae60
+    classDef validate fill:#00b386,color:#fff,stroke:#007a5e
+    classDef wizard fill:#9b59b6,color:#fff,stroke:#6c3483
+    classDef warning fill:#f5a623,color:#fff,stroke:#c47d00
+    classDef io fill:#f5a623,color:#fff,stroke:#c47d00
+
+    class PR1,PR2,PR3 hard
+    class READY,BK8 ready
+    class V1,V2,V3,V4,V5,V6,V7,V8,V9 validate
+    class W1,W2,W3,W4,W5,W6,W7,W8,W9,W10 wizard
+    class ERR,HR5,BK9 warning
+    class A io
