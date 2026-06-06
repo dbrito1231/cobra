@@ -4,6 +4,18 @@
 **Scope:** Coordinates all subagents, enforces spec compliance, keeps specs and code in sync.
 **Reports to:** Damian (project owner). Damian's answers are binding.
 
+## Cursor Integration
+
+This folder is the **canonical source** for all agent role definitions. Cursor uses them in two ways:
+
+| Mechanism | Location | Purpose |
+|---|---|---|
+| Always-on instructions | `AGENTS.md` (project root) | Loads Lead Developer context in every session |
+| Subagent delegation | `.cursor/agents/*.md` | Task tool + `/agent-name` invocation |
+| Manual context | `@agents/<file>.md` | Attach a brief to any prompt |
+
+Edit files here first; `.cursor/agents/` mirrors this content with YAML frontmatter for Cursor discovery.
+
 ## Agent Index
 
 | Phase | Agent | Role |

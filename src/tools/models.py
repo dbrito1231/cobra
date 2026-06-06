@@ -104,7 +104,10 @@ class ToolMeta:
     action_type: ActionType
     handler: str
     operation_action_types: dict[str, ActionType] = field(default_factory=dict)
+    default_operation: str | None = None
 
     def classify(self, params: dict[str, Any]) -> ActionType:
-        operation = str(params.get("operation", "")).lower()
+        operation = str(params.get("operation") or "").lower()
+        if not operation and self.default_operation:
+            operation = self.default_operation
         return self.operation_action_types.get(operation, self.action_type)

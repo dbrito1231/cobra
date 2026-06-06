@@ -23,6 +23,7 @@ TOOL_CATALOG: dict[str, ToolMeta] = {
         description="Read, write, and organize files and folders.",
         action_type=ActionType.DESTRUCTIVE,
         handler="tools.builtin.file_management.handle",
+        default_operation="read",
         operation_action_types={
             "read": ActionType.READ_ONLY,
             "list": ActionType.READ_ONLY,
@@ -40,24 +41,36 @@ TOOL_CATALOG: dict[str, ToolMeta] = {
         description="Read a file.",
         action_type=ActionType.READ_ONLY,
         handler="tools.builtin.file_management.handle",
+        default_operation="read",
     ),
     "file_write": ToolMeta(
         name="file_write",
         description="Write a file.",
         action_type=ActionType.DESTRUCTIVE,
         handler="tools.builtin.file_management.handle",
+        default_operation="write",
     ),
     "app_control": ToolMeta(
         name="app_control",
         description="Open, close, or interact with applications.",
         action_type=ActionType.DESTRUCTIVE,
         handler="tools.builtin.app_control.handle",
+        default_operation="open",
+        operation_action_types={
+            "list": ActionType.READ_ONLY,
+            "open": ActionType.DESTRUCTIVE,
+            "close": ActionType.DESTRUCTIVE,
+            "activate": ActionType.DESTRUCTIVE,
+            "focus": ActionType.DESTRUCTIVE,
+            "interact": ActionType.DESTRUCTIVE,
+        },
     ),
     "calendar": ToolMeta(
         name="calendar",
         description="Read or create calendar entries.",
         action_type=ActionType.DESTRUCTIVE,
         handler="tools.builtin.calendar.handle",
+        default_operation="read",
         operation_action_types={
             "read": ActionType.READ_ONLY,
             "check": ActionType.READ_ONLY,
@@ -72,12 +85,14 @@ TOOL_CATALOG: dict[str, ToolMeta] = {
         description="Read calendar entries.",
         action_type=ActionType.READ_ONLY,
         handler="tools.builtin.calendar.handle",
+        default_operation="read",
     ),
     "calendar_write": ToolMeta(
         name="calendar_write",
         description="Create or update calendar entries.",
         action_type=ActionType.DESTRUCTIVE,
         handler="tools.builtin.calendar.handle",
+        default_operation="create",
     ),
     "communication": ToolMeta(
         name="communication",
@@ -90,6 +105,7 @@ TOOL_CATALOG: dict[str, ToolMeta] = {
         description="Read or change system settings.",
         action_type=ActionType.DESTRUCTIVE,
         handler="tools.builtin.system_control.handle",
+        default_operation="status",
         operation_action_types={
             "status": ActionType.READ_ONLY,
             "read": ActionType.READ_ONLY,

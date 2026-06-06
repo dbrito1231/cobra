@@ -312,3 +312,23 @@ async def test_empty_chain_is_logged():
     mock_log.assert_called_once()
     logged = mock_log.call_args[0][0]
     assert logged.error == "empty_chain"
+
+
+def test_log_tool_result_writes_wiki(tmp_path, monkeypatch):
+    from tools.memory import log_tool_result
+    from tools.privacy import local_tool_log_path, wiki_tool_log_path
+
+    wiki_path = tmp_path / "wiki" / "tools-log.md"
+    jsonl_path = tmp_path / "tools-log.jsonl"
+    monkeypatch.setattr("tools.memory.wiki_tool_log_path", lambda: wiki_path)
+    monkeypatch.setattr("tools.memory.local_tool_log_path", lambda: jsonl_path)
+
+    call = ToolCall("web_search", {"operation": "search", "query": "test"})
+    result = ToolResult(success=True, output={"ok": True}, tool_call=call)
+    log_tool_result(result)
+
+    assert wiki_path.exists()
+    content = wiki_path.read_text(encoding="utf-8")
+    assert "web_search" in content
+    assert "success" in content.lower()
+    assert jsonl_path.exists()

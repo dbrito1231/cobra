@@ -66,3 +66,9 @@ def local_tool_log_path() -> Path:
     """PR3: tool logs are local-only under the user's C.O.B.R.A. directory."""
 
     return Path.home() / ".cobra" / "tools-log.jsonl"
+
+
+def wiki_tool_log_path() -> Path:
+    """Dedicated wiki Tools log page (tool-memory.md TM1–TM4)."""
+
+    return Path.home() / ".cobra" / "wiki" / "tools-log.md"

@@ -1,7 +1,15 @@
-"""Calendar built-in tool."""
+"""Calendar built-in tool — local schedule at ~/.cobra/calendar/."""
 
 from __future__ import annotations
 
+from tools.builtin.calendar_store import (
+    check_schedule,
+    create_event,
+    delete_event,
+    list_events,
+    parse_datetime,
+    update_event,
+)
 from tools.models import ToolCall
 
 
@@ -15,31 +23,39 @@ def _operation_for(call: ToolCall) -> str:
 
 def handle(call: ToolCall) -> dict:
     operation = _operation_for(call)
-    if operation in {"read", "check", "list"}:
+
+    if operation in {"read", "list"}:
+        starts_after = parse_datetime(call.params.get("starts_after"))
+        starts_before = parse_datetime(call.params.get("starts_before"))
+        events = list_events(starts_after=starts_after, starts_before=starts_before)
         return {
             "operation": operation,
-            "status": "not_configured",
-            "events": [],
-            "message": "Calendar read adapters are deferred until a local calendar source is chosen.",
+            "status": "ok",
+            "event_count": len(events),
+            "events": events,
         }
 
-    if operation in {"create", "update", "delete"}:
-        try:
-            from dateutil import parser
-        except ImportError:
-            parser = None
+    if operation in {"check", "schedule"}:
+        on_date = parse_datetime(call.params.get("date") or call.params.get("on_date"))
+        schedule = check_schedule(on_date=on_date)
+        return {"operation": "check", "status": "ok", **schedule}
 
-        starts_at = call.params.get("starts_at")
-        parsed_starts_at = parser.parse(str(starts_at)).isoformat() if starts_at and parser else starts_at
-        return {
-            "operation": operation,
-            "status": "not_created",
-            "event": {
-                "title": call.params.get("title"),
-                "starts_at": parsed_starts_at,
-                "duration_minutes": call.params.get("duration_minutes"),
-            },
-            "message": "Calendar write adapters are deferred; no calendar event was created.",
-        }
+    if operation == "create":
+        event = create_event(call.params)
+        return {"operation": "create", "status": "created", "event": event}
+
+    if operation == "update":
+        event_id = str(call.params.get("event_id") or call.params.get("id") or "").strip()
+        if not event_id:
+            raise ValueError("calendar update requires event_id.")
+        event = update_event(event_id, call.params)
+        return {"operation": "update", "status": "updated", "event": event}
+
+    if operation == "delete":
+        event_id = str(call.params.get("event_id") or call.params.get("id") or "").strip()
+        if not event_id:
+            raise ValueError("calendar delete requires event_id.")
+        event = delete_event(event_id)
+        return {"operation": "delete", "status": "deleted", "event": event}
 
     raise NotImplementedError(f"Unsupported calendar operation: {operation}")

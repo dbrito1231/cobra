@@ -59,16 +59,16 @@ You own every section in these files. No section is shared with another agent.
 ## 7. Current Status
 | Spec area | Status |
 |---|---|
-| Web server | Not started |
-| Theme (dark only) | Not started |
-| Three-panel layout | Not started |
-| Top bar | Not started |
-| Chat panel + indicators | Not started |
-| Wiki browser | Not started |
-| Status panel | Not started |
-| WebSocket | Not started |
-| Search overlay | Not started |
-| Approval prompts | Not started |
+| Web server | Implemented (`src/chat_ui/server.py`, default port 8765) |
+| Theme (dark only) | Implemented (`src/chat_ui/static/css/theme.css`) |
+| Three-panel layout | Implemented (`src/chat_ui/static/index.html`) |
+| Top bar | Implemented |
+| Chat panel + indicators | Implemented |
+| Wiki browser | Implemented |
+| Status panel | Implemented |
+| WebSocket | Implemented (`/ws` event contract in `models.py`) |
+| Search overlay | Implemented — cross-session jump via `/api/session/{id}/activate` |
+| Approval prompts | Implemented — sanitized data_summary, code_preview, draft_content |
 
 > Update status as work progresses. Work is complete only after a PASS verdict from the Lead Developer.
 

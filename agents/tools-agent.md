@@ -55,13 +55,13 @@ You own every section in these files. No section is shared with another agent.
 ## 7. Current Status
 | Spec area | Status |
 |---|---|
-| Tool set (7 tools) | Not started |
-| Approval model | Not started |
-| Tool chaining | Not started |
-| Failure/retry | Not started |
-| Sandboxing | Not started |
-| Tool memory | Not started |
-| Extensibility flow | Not started |
+| Tool set (7 tools) | Partial — calendar + app_control implemented; system_control mutations still stub |
+| Approval model | Implemented (default_operation alignment fixed) |
+| Tool chaining | Implemented |
+| Failure/retry | Implemented |
+| Sandboxing | Implemented (per-call override; session-scoped pending) |
+| Tool memory | Implemented — wiki `tools-log.md` + JSONL backup |
+| Extensibility flow | Stub only |
 
 > Update status as work progresses. Work is complete only after a PASS verdict from the Lead Developer.
 
