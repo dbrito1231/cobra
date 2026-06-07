@@ -6,6 +6,7 @@ import asyncio
 import threading
 import webbrowser
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Union
 
@@ -239,8 +240,6 @@ class ChatUIServer:
         *,
         timestamp: str = "",
     ) -> None:
-        from datetime import datetime, timezone
-
         ts = timestamp or datetime.now(timezone.utc).isoformat()
         await self.push_event(WebSocketEvent.anomaly_alert(destination, detail, ts))
 

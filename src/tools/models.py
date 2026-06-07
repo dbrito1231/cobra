@@ -111,3 +111,10 @@ class ToolMeta:
         if not operation and self.default_operation:
             operation = self.default_operation
         return self.operation_action_types.get(operation, self.action_type)
+
+
+@dataclass
+class HealthStatus:
+    healthy: bool
+    message: str = "ok"
+    degraded: bool = False

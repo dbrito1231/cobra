@@ -155,11 +155,7 @@ class BrainService:
         from voice.models import MoodResult
 
         mood_obj = MoodResult(**mood) if mood else None
-        normalized = (
-            self.input_mode.normalize_text(text, mood=mood_obj)
-            if source == "text"
-            else self.input_mode.normalize_text(text, mood=mood_obj)
-        )
+        normalized = self.input_mode.normalize_text(text, mood=mood_obj)
 
         if normalized.needs_confirmation:
             msg = ChatMessage(sender="cobra", content=normalized.confirmation_prompt)
@@ -274,14 +270,9 @@ class BrainService:
 
     @property
     def seed_mode_active(self) -> bool:
-        """True when personality interview should take priority over the full pipeline."""
-
         if self.personality_ready():
             return self.seed.interview_active()
         return True
-
-    def in_seed_interview(self) -> bool:
-        return self.seed.interview_active()
 
     def personality_ready(self) -> bool:
         return self.seed.mvp_complete() or self.personality.is_personality_ready()

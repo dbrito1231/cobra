@@ -65,8 +65,6 @@ def register_tool(
         raise ToolRegistrationError(f"Tool name '{normalized}' is reserved.")
     if normalized in TOOL_CATALOG:
         raise ToolRegistrationError(f"Tool '{normalized}' is already registered.")
-    if not callable(handler):
-        raise ToolRegistrationError("Handler must be callable.")
 
     if isinstance(metadata, ToolMeta):
         meta = metadata

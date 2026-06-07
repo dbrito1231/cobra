@@ -20,9 +20,6 @@ except ImportError:
 
 
 def logprob_to_confidence(avg_logprob: float) -> float:
-    """Map Whisper segment avg_logprob to a 0–1 confidence score."""
-
-    # avg_logprob is typically in [-1, 0]; exp maps toward (0, 1].
     return max(0.0, min(1.0, math.exp(avg_logprob)))
 
 

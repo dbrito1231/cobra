@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Any, Union
 
 from config.reader import ConfigReader
@@ -20,20 +21,12 @@ from tools.config import (
     ToolsConfig,
     configure_sandbox_default,
     reset_session_sandbox,
+    sandbox_enabled_for_call,
     set_session_sandbox_override,
 )
-from tools.models import ApprovalEvent, FailureEvent, ToolCall, ToolResult
+from tools.models import ApprovalEvent, FailureEvent, HealthStatus, ToolCall, ToolResult
 from tools.privacy import configure_paths, sanitize_tool_call
 from tools.registry import TOOL_CATALOG
-
-ApprovalCallback = Callable[[ApprovalEvent], Union[Awaitable[None], None]]
-
-
-class HealthStatus:
-    def __init__(self, *, healthy: bool, message: str = "ok", degraded: bool = False) -> None:
-        self.healthy = healthy
-        self.message = message
-        self.degraded = degraded
 
 
 class ToolsService:
@@ -44,12 +37,10 @@ class ToolsService:
         config_reader: ConfigReader,
         *,
         audit_outbound: Callable[..., None] | None = None,
-        on_approval_required: ApprovalCallback | None = None,
     ) -> None:
         legacy = self._reader_to_legacy(config_reader)
         self.config = ToolsConfig.from_config_dict(legacy)
         self._audit_outbound = audit_outbound
-        self._on_approval_required = on_approval_required
         self._initialized = False
 
     def initialize(self) -> None:
@@ -88,29 +79,12 @@ class ToolsService:
         """Primary contract — execute a tool under the approval model."""
 
         sanitized = sanitize_tool_call(call)
-        from tools.config import sandbox_enabled_for_call
-
-        if not self.config.sandbox_enabled:
-            sanitized = ToolCall(
-                tool_name=sanitized.tool_name,
-                params={**sanitized.params, "sandboxed": False},
-                sandboxed=False,
-                chain_id=sanitized.chain_id,
-            )
-        elif sandbox_enabled_for_call(sanitized):
-            sanitized = ToolCall(
-                tool_name=sanitized.tool_name,
-                params={**sanitized.params, "sandboxed": True},
-                sandboxed=True,
-                chain_id=sanitized.chain_id,
-            )
-        else:
-            sanitized = ToolCall(
-                tool_name=sanitized.tool_name,
-                params={**sanitized.params, "sandboxed": False},
-                sandboxed=False,
-                chain_id=sanitized.chain_id,
-            )
+        sandboxed = self.config.sandbox_enabled and sandbox_enabled_for_call(sanitized)
+        sanitized = replace(
+            sanitized,
+            sandboxed=sandboxed,
+            params={**sanitized.params, "sandboxed": sandboxed},
+        )
 
         outcome = await execute_tool(sanitized)
         self._audit_outbound_tool(sanitized, outcome)

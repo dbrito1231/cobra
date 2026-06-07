@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from brain.memory.wiki import WikiStore
+from brain.model_layer import ModelUnavailableError
 
 if TYPE_CHECKING:
     from brain.model_layer import ModelLayer
@@ -411,11 +412,7 @@ class SeedDocumentManager:
         )
 
     def _reflect(self, answer: str, question: str, section: str) -> str:
-        if self.model is None:
-            return f"For **{section}**, I understood: {answer}"
-
-        from brain.model_layer import ModelUnavailableError
-
+        fallback = f"For **{section}**, I understood: {answer}"
         prompt = (
             f"Interview dimension: {section}\n"
             f"Question: {question}\n"
@@ -423,45 +420,56 @@ class SeedDocumentManager:
             "Reflect back what you understood in 1-2 sentences. "
             "Do not ask a new question."
         )
-        try:
-            result = self.model.complete(
-                prompt,
-                system="You are conducting a personality interview. Be concise and accurate.",
-                max_tokens=200,
-                temperature=0.2,
-            )
-            if result.text.strip() and not result.offline:
-                return result.text.strip()
-        except ModelUnavailableError:
-            pass
-        return f"For **{section}**, I understood: {answer}"
+        return self._complete_text(
+            prompt,
+            system="You are conducting a personality interview. Be concise and accurate.",
+            max_tokens=200,
+            temperature=0.2,
+            fallback=fallback,
+        )
 
     def _summarize_stage(self, section: str) -> str:
         answers = self.state.answers.get(section, [])
         joined = " ".join(answers)
-        if self.model is None or not joined:
-            return joined or f"Summary for {section}."
-
-        from brain.model_layer import ModelUnavailableError
-
+        if not joined:
+            return f"Summary for {section}."
         prompt = (
             f"Dimension: {section}\n"
             f"User answers during interview:\n{joined}\n\n"
             "Write a concise third-person summary for a personality profile wiki page. "
             "2-4 sentences. Facts only from the answers."
         )
+        return self._complete_text(
+            prompt,
+            system="Write personality profile summaries. Return only the summary text.",
+            max_tokens=300,
+            temperature=0.3,
+            fallback=joined,
+        )
+
+    def _complete_text(
+        self,
+        prompt: str,
+        *,
+        system: str,
+        max_tokens: int,
+        temperature: float,
+        fallback: str,
+    ) -> str:
+        if self.model is None:
+            return fallback
         try:
             result = self.model.complete(
                 prompt,
-                system="Write personality profile summaries. Return only the summary text.",
-                max_tokens=300,
-                temperature=0.3,
+                system=system,
+                max_tokens=max_tokens,
+                temperature=temperature,
             )
             if result.text.strip() and not result.offline:
                 return result.text.strip()
         except ModelUnavailableError:
             pass
-        return joined
+        return fallback
 
     def _current_question(self) -> str | None:
         stage = self.state.current_stage
