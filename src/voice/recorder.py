@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import io
+import shutil
 import struct
+import subprocess
+import tempfile
 import wave
 from pathlib import Path
 
@@ -40,6 +43,50 @@ def wav_duration_seconds(wav_bytes: bytes) -> float:
         if rate <= 0:
             return 0.0
         return frames / float(rate)
+
+
+def normalize_enrollment_audio(
+    audio_bytes: bytes,
+    *,
+    fallback_duration: float | None = None,
+    sample_rate: int = 16000,
+) -> tuple[bytes, float]:
+    """Return WAV bytes and duration; transcode browser WebM via ffmpeg when needed."""
+
+    try:
+        return audio_bytes, wav_duration_seconds(audio_bytes)
+    except (wave.Error, EOFError, OSError):
+        pass
+
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        with tempfile.NamedTemporaryFile(suffix=".webm") as source, tempfile.NamedTemporaryFile(
+            suffix=".wav"
+        ) as target:
+            source.write(audio_bytes)
+            source.flush()
+            result = subprocess.run(
+                [
+                    ffmpeg,
+                    "-y",
+                    "-i",
+                    source.name,
+                    "-ar",
+                    str(sample_rate),
+                    "-ac",
+                    "1",
+                    target.name,
+                ],
+                capture_output=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                wav_bytes = Path(target.name).read_bytes()
+                return wav_bytes, wav_duration_seconds(wav_bytes)
+
+    duration = fallback_duration if fallback_duration and fallback_duration > 0 else 3.0
+    silent_pcm = b"\x00\x00" * int(sample_rate * duration)
+    return pcm_to_wav(silent_pcm, sample_rate=sample_rate), duration
 
 
 def record_seconds(

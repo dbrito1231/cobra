@@ -168,6 +168,8 @@ Decomposed, implementable specs live in **`specs/orchestrator/`**. The parent do
 | [orchestrator/graceful-shutdown.md](orchestrator/graceful-shutdown.md) | Ordered shutdown with session summarization |
 | [orchestrator/inter-component-communication.md](orchestrator/inter-component-communication.md) | Event publish and route via orchestrator |
 
+**Platform support:** Launch entry point and process model defer to [platform-support.md](platform-support.md).
+
 ---
 
 *This spec is a living document. No implementation begins without user approval.*

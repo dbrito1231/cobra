@@ -27,8 +27,21 @@ The Spec Sync Agent covers **all 9 components** and the cross-cutting concerns:
 | Chat UI | `specs/chat-ui.md` + `specs/chat-ui/` |
 | Orchestrator | `specs/orchestrator.md` + `specs/orchestrator/` |
 | Seed Document | `specs/seed-document.md` + `specs/seed-document/` |
+| Platform support | `specs/platform-support.md` (cross-cutting; defers to component specs) |
+| First-run onboarding | `specs/onboarding/` (cross-cutting; orchestrator + voice + seed) |
 
 No spec file is outside this scope. Any spec file not present in the Lead Developer's spec index ([[AGENTS]] §7) is flagged as unowned.
+
+### Platform support drift checks
+
+When auditing platform-related code, compare against `specs/platform-support.md`:
+
+- **Tier matrix** — component Full/Partial/Unsupported claims vs runtime behavior on macOS, Linux, Windows.
+- **Path redaction** — `src/security/path_redaction.py` used by all privacy modules; macOS `/Users/`, Linux `/home/`, Windows `C:\Users\`, tilde.
+- **Subprocess env** — `src/cobra_platform/env.py` forwards `HOME` and `USERPROFILE` in sandbox/code execution.
+- **Voice enrollment** — Coqui gate (`tts_available`), WebM→WAV transcoding, Windows checklist in `docs/voice/windows-e2e-checklist.md`.
+- **Tools adapters** — `app_control.py` and `system_control.py` per-OS backends vs §7 capability matrix.
+- **Cross-references** — parent specs and high-priority sub-specs link to `platform-support.md`.
 
 ## 3. Responsibilities
 - Compare a component's implementation against its spec files and identify **every** gap.

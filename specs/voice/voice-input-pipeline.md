@@ -52,3 +52,4 @@ flowchart TD
 - [mood-inference.md](mood-inference.md)
 - [privacy.md](privacy.md)
 - [specs/brain/input-mode-layer.md](../brain/input-mode-layer.md)
+- [../platform-support.md](../platform-support.md) — mic capture and audio deps

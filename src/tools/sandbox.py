@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cobra_platform.env import merge_subprocess_env
 from tools.builtin import dispatch_builtin
 from tools.config import sandbox_enabled_for_call
 from tools.models import ToolCall, ToolResult
@@ -21,13 +22,7 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 def _restricted_env() -> dict[str, str]:
     """Build a clean subprocess environment without user secrets."""
 
-    env = {
-        "PATH": os.environ.get("PATH", ""),
-        "HOME": os.environ.get("HOME", ""),
-        "PYTHONPATH": str(SRC_ROOT),
-        "COBRA_SANDBOX": "1",
-    }
-    return {key: value for key, value in env.items() if value}
+    return merge_subprocess_env(pythonpath=str(SRC_ROOT), extra={"COBRA_SANDBOX": "1"})
 
 
 def _parse_worker_output(stdout: str, stderr: str) -> tuple[bool, Any, str | None]:

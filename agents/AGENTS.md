@@ -58,11 +58,13 @@ C.O.B.R.A. has 9 components. Each has a root spec and a sub-spec folder, and eac
 | Orchestrator | [[specs/orchestrator]] | `specs/orchestrator/` | [[orchestrator-agent]] |
 | Seed Document | [[specs/seed-document]] | `specs/seed-document/` | owned by [[brain-agent]] (personality model) |
 
-Plus one cross-cutting agent that owns no component spec:
+Plus cross-cutting concerns that own no single component spec:
 
-| Concern | Owner |
-|---|---|
-| Spec↔Code integrity | [[spec-sync-agent]] |
+| Concern | Spec | Owner |
+|---|---|---|
+| Spec↔Code integrity | — | [[spec-sync-agent]] |
+| Platform support | [[specs/platform-support]] | Lead Developer |
+| First-run onboarding | `specs/onboarding/` | Lead Developer |
 
 > **Note on Seed Document:** The Seed Document specs define the personality interview and living-document model that feed the Brain's personality model (`specs/brain/personality-model.md`). The Brain Agent owns implementation of the seed document so personality logic lives with the component that uses it. The Lead Developer is responsible for confirming this assignment leaves no `specs/seed-document/` section unowned.
 
@@ -236,6 +238,8 @@ Keep this table current. It is your memory of where each capability is specified
 | Graceful shutdown | `specs/orchestrator/graceful-shutdown.md` | orchestrator |
 | Event bus / inter-component comms | `specs/orchestrator/inter-component-communication.md` | orchestrator |
 | Component overviews | `specs/brain/brain-overview.md`, `specs/chat-ui/chat-ui-overview.md`, `specs/configuration/configuration-overview.md`, `specs/mcp-server-layer/mcp-server-layer-overview.md`, `specs/orchestrator/orchestrator-overview.md`, `specs/security/security-overview.md`, `specs/seed-document/seed-document-overview.md`, `specs/tools/tools-overview.md`, `specs/voice/voice-overview.md` | respective agent |
+| Platform support tiers + capability matrix | `specs/platform-support.md` | Lead Developer |
+| First-run onboarding sequence | `specs/onboarding/first-run-sequence.md` | Lead Developer |
 | Implementation plans | `specs/brain/implementation-plan.md`, `specs/chat-ui/implementation-plan.md`, `specs/configuration/implementation-plan.md`, `specs/mcp-server-layer/implementation-plan.md`, `specs/orchestrator/implementation-plan.md`, `specs/security/implementation-plan.md`, `specs/seed-document/implementation-plan.md`, `specs/tools/implementation-plan.md`, `specs/voice/implementation-plan.md` | respective agent |
 | Privacy rules (per component) | `specs/brain/privacy.md`, `specs/configuration/privacy.md`, `specs/mcp-server-layer/privacy.md`, `specs/security/privacy.md`, `specs/tools/privacy.md`, `specs/voice/privacy.md` | respective agent |
 | Flow diagrams | `specs/brain-flow.mermaid`, `specs/chat-ui-flow.mermaid`, `specs/configuration-flow.mermaid`, `specs/mcp-server-layer-flow.mermaid`, `specs/orchestrator-flow.mermaid`, `specs/security-flow.mermaid`, `specs/seed-document-flow.mermaid`, `specs/tools-flow.mermaid`, `specs/voice-flow.mermaid` | respective agent |

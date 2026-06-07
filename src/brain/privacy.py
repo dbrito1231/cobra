@@ -9,10 +9,11 @@ from pathlib import Path
 from typing import Union
 
 from brain.models import PrivacyDecision
+from security.path_redaction import redact_home_paths, MAC_HOME_RE, LINUX_HOME_RE, WINDOWS_HOME_RE, TILDE_HOME_RE
 
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 PHONE_RE = re.compile(r"\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b")
-HOME_PATH_RE = re.compile(r"/Users/[^/\s]+")
+HOME_PATH_PATTERNS = (MAC_HOME_RE, LINUX_HOME_RE, WINDOWS_HOME_RE, TILDE_HOME_RE)
 PERSONAL_NAME_RE = re.compile(
     r"\b(?:my name is|i am|i'm)\s+[A-Z][a-z]+",
     re.IGNORECASE,
@@ -36,7 +37,7 @@ def sanitize_topic(value: str) -> str:
 
     sanitized = EMAIL_RE.sub("[email]", value)
     sanitized = PHONE_RE.sub("[phone]", sanitized)
-    sanitized = HOME_PATH_RE.sub("[home]", sanitized)
+    sanitized = redact_home_paths(sanitized)
     sanitized = PERSONAL_NAME_RE.sub("[person]", sanitized)
     sanitized = PROPER_NAME_RE.sub(" [person]", sanitized)
     return sanitized.strip()
@@ -47,7 +48,7 @@ def contains_personal_context(value: str) -> bool:
 
     if any(
         pattern.search(value)
-        for pattern in (EMAIL_RE, PHONE_RE, HOME_PATH_RE, PERSONAL_NAME_RE, FIRST_PERSON_RE)
+        for pattern in (EMAIL_RE, PHONE_RE, *HOME_PATH_PATTERNS, PERSONAL_NAME_RE, FIRST_PERSON_RE)
     ):
         return True
     for match in PROPER_NAME_RE.finditer(value):

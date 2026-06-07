@@ -61,3 +61,4 @@ flowchart TD
 - [specs/chat-ui/application-type.md](../chat-ui/application-type.md)
 - [authentication.md](authentication.md)
 - [anomaly-detection.md](anomaly-detection.md)
+- [../platform-support.md](../platform-support.md) — bind host per OS

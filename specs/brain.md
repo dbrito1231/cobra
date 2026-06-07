@@ -318,6 +318,8 @@ Decomposed, implementable specs live in **`specs/brain/`**. The parent document 
 | [brain/failure-handling.md](brain/failure-handling.md) | Failure and final response paths |
 | [brain/privacy.md](brain/privacy.md) | Privacy hard rule (master) |
 
+**Platform support:** Local-first design; storage paths and hardware defer to [platform-support.md](platform-support.md).
+
 ---
 
 *This spec is a living document. No implementation begins without user approval.*

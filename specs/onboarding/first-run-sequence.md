@@ -91,3 +91,4 @@ On startup after READY, orchestrator reads state and routes input to the appropr
 - [specs/seed-document/minimum-viable-seed.md](../seed-document/minimum-viable-seed.md)
 - [specs/configuration/first-time-setup.md](../configuration/first-time-setup.md)
 - [specs/orchestrator/startup-phases.md](../orchestrator/startup-phases.md)
+- [../platform-support.md](../platform-support.md) — tier matrix and degraded modes

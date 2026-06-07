@@ -151,6 +151,8 @@ Decomposed, implementable specs live in **`specs/tools/`**. The parent document 
 | [tools/extensibility.md](tools/extensibility.md) | Adding and registering custom tools |
 | [tools/privacy.md](tools/privacy.md) | Privacy hard rule for all tool calls |
 
+**Platform support:** OS-integrated tools (app control, system control), sandbox env, and capability tiers defer to [platform-support.md](platform-support.md). **Communication platforms** (Slack, email, etc.) are unrelated to OS platform support — see Open Items below.
+
 ---
 
 *This spec is a living document. No implementation begins without user approval.*

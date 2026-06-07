@@ -169,7 +169,12 @@ class VoiceCloningManager:
         try:
             duration = wav_duration_seconds(wav_bytes)
         except (wave.Error, EOFError, OSError):
-            duration = duration_seconds if duration_seconds and duration_seconds > 0 else 3.0
+            from voice.recorder import normalize_enrollment_audio
+
+            wav_bytes, duration = normalize_enrollment_audio(
+                wav_bytes,
+                fallback_duration=duration_seconds,
+            )
         self.samples_dir.mkdir(parents=True, exist_ok=True)
         target = self.samples_dir / f"sample_{len(self.session.samples):04d}.wav"
         target.write_bytes(wav_bytes)
@@ -241,7 +246,27 @@ class VoiceCloningManager:
         self._save_state()
 
     def is_enrollment_complete(self) -> bool:
-        return self.session.approved and self.output.model_status().ready
+        return (
+            self.session.approved
+            and self.output.model_status().ready
+            and self._synthesizer.available
+        )
+
+    def install_instructions(self) -> str:
+        import platform
+
+        system = platform.system()
+        if system == "Darwin":
+            return (
+                "Install voice dependencies: brew install portaudio ffmpeg && "
+                "pip install -r requirements-voice.txt"
+            )
+        if system == "Linux":
+            return (
+                "Install voice dependencies: sudo apt install portaudio19-dev ffmpeg && "
+                "pip install -r requirements-voice.txt"
+            )
+        return "Install voice dependencies: pip install -r requirements-voice.txt (Windows: may need Visual C++ Build Tools)"
 
     def enrollment_status(self) -> dict:
         minimum = self.minimum_seconds
@@ -261,5 +286,6 @@ class VoiceCloningManager:
             "complete": self.is_enrollment_complete(),
             "sample_count": len(self.session.samples),
             "tts_available": self._synthesizer.available,
+            "install_instructions": self.install_instructions(),
             "test_phrase": TEST_PLAYBACK_PHRASE,
         }

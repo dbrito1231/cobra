@@ -79,3 +79,4 @@ Configuration keys live under `voice:` in config YAML ([configuration.md](config
 - [voice-output.md](voice-output.md)
 - [configuration.md](configuration.md)
 - [privacy.md](privacy.md)
+- [../platform-support.md](../platform-support.md) — enrollment tiers and install recovery

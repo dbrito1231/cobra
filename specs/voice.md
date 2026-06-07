@@ -164,6 +164,8 @@ Decomposed, implementable specs live in **`specs/voice/`**. The parent document 
 | [voice/privacy.md](voice/privacy.md) | Local-only audio hard rules |
 | [voice/configuration.md](voice/configuration.md) | `voice:` YAML configuration block |
 
+**Platform support:** Audio deps, enrollment tiers, and install recovery defer to [platform-support.md](platform-support.md).
+
 ---
 
 *This spec is a living document. No implementation begins without user approval.*

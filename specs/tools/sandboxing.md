@@ -59,3 +59,4 @@ flowchart TD
 
 - [execution-flow.md](execution-flow.md) — `G`, `O`
 - [approval-model.md](approval-model.md) — pre-sandbox approval gates
+- [../platform-support.md](../platform-support.md) — sandbox env (`HOME`/`USERPROFILE`)

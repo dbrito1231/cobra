@@ -7,16 +7,12 @@ import subprocess
 import sys
 import tempfile
 
+from cobra_platform.env import merge_subprocess_env
 from tools.models import ToolCall
 
 
 def _execution_env() -> dict[str, str]:
-    env = {
-        "PATH": os.environ.get("PATH", ""),
-        "HOME": os.environ.get("HOME", ""),
-        "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
-    }
-    return {key: value for key, value in env.items() if value}
+    return merge_subprocess_env(pythonpath=os.environ.get("PYTHONPATH", ""))
 
 
 def handle(call: ToolCall) -> dict:

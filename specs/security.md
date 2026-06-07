@@ -135,6 +135,8 @@ Decomposed, implementable specs live in **`specs/security/`**. The parent docume
 | [security/anomaly-detection.md](security/anomaly-detection.md) | Known-destination allowlist and block/alert |
 | [security/privacy.md](security/privacy.md) | Sanitized logs and local-only alerts |
 
+**Platform support:** OS permissions, bind host, and path redaction defer to [platform-support.md](platform-support.md).
+
 ---
 
 *This spec is a living document. No implementation begins without user approval.*

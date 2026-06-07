@@ -60,3 +60,4 @@ _None specific to this component._
 - [authentication.md](authentication.md)
 - [outbound-audit-log.md](outbound-audit-log.md)
 - [specs/configuration/storage.md](../configuration/storage.md)
+- [../platform-support.md](../platform-support.md) — file permissions per OS

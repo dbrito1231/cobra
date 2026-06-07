@@ -54,3 +54,4 @@ _None specific to this component._
 - [first-time-setup.md](first-time-setup.md) — initial write
 - [hot-reload.md](hot-reload.md) — change detection
 - [privacy.md](privacy.md)
+- [../platform-support.md](../platform-support.md) — OS path resolution

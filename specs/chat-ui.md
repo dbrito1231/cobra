@@ -183,6 +183,8 @@ Decomposed, implementable specs live in **`specs/chat-ui/`**. The parent documen
 | [chat-ui/theme.md](chat-ui/theme.md) | Dark-mode-only visual design |
 | [chat-ui/technology-stack.md](chat-ui/technology-stack.md) | SPA, Python server, markdown, WebSocket |
 
+**Platform support:** Browser launch, background lifecycle, and Python server runtime defer to [platform-support.md](platform-support.md).
+
 ---
 
 *This spec is a living document. No implementation begins without user approval.*

@@ -153,11 +153,15 @@ async function refreshVoiceEnrollmentStatus() {
   const mins = Math.floor((status.sample_seconds || 0) / 60);
   const minGoal = Math.floor((status.minimum_seconds || 900) / 60);
   voiceEnrollmentProgressLabel.textContent = `${mins} / ${minGoal} min minimum`;
-  voiceTrainBtn.disabled = !status.minimum_met;
-  voiceTestPlaybackBtn.disabled = !status.trained;
-  voiceApproveBtn.disabled = !status.trained;
+  voiceTrainBtn.disabled = !status.minimum_met || !status.tts_available;
+  voiceTestPlaybackBtn.disabled = !status.trained || !status.tts_available;
+  voiceApproveBtn.disabled = !status.trained || !status.tts_available;
   voiceRejectBtn.disabled = !status.trained;
-  if (status.complete) {
+  voiceRecordStart.disabled = !status.tts_available;
+  if (!status.tts_available) {
+    voiceEnrollmentStatus.textContent =
+      status.install_instructions || "Install Coqui TTS (pip install -r requirements-voice.txt) to continue.";
+  } else if (status.complete) {
     voiceEnrollmentStatus.textContent = "Voice enrollment complete.";
   } else if (status.trained) {
     voiceEnrollmentStatus.textContent = "Listen to the test playback, then approve or record more.";

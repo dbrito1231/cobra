@@ -56,3 +56,4 @@ flowchart LR
 - [execution-flow.md](execution-flow.md) — `A`, `B`
 - [approval-model.md](approval-model.md) — per-tool approval class
 - [extensibility.md](extensibility.md) — new tools on demand
+- [../platform-support.md](../platform-support.md) — OS capability matrix for app/system control

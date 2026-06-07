@@ -55,3 +55,4 @@ flowchart TD
 - [technology-stack.md](technology-stack.md)
 - [chat-ui-overview.md](chat-ui-overview.md)
 - [specs/configuration/config-file-structure.md](../configuration/config-file-structure.md)
+- [../platform-support.md](../platform-support.md) — browser launch and background lifecycle

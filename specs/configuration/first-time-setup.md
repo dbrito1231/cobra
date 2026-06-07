@@ -70,3 +70,4 @@ _None specific to this component._
 - [startup-flow.md](startup-flow.md) — `B` routing
 - [config-file-structure.md](config-file-structure.md) — `W10` output
 - [startup-validation.md](startup-validation.md)
+- [../platform-support.md](../platform-support.md) — LM Studio install per OS

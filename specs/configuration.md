@@ -192,6 +192,8 @@ Decomposed, implementable specs live in **`specs/configuration/`**. The parent d
 | [configuration/backup-restore.md](configuration/backup-restore.md) | Manual backup and restore |
 | [configuration/privacy.md](configuration/privacy.md) | Privacy hard rule for configuration |
 
+**Platform support:** OS paths, install, and Python runtime defer to [platform-support.md](platform-support.md).
+
 ---
 
 *This spec is a living document. No implementation begins without user approval.*

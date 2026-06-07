@@ -180,6 +180,8 @@ def _sanitize_approval_summary(params: dict[str, Any]) -> str:
 
     import re
 
+    from security.path_redaction import redact_home_paths
+
     topic_keys = ("query", "topic", "subject", "operation", "path", "tool_name")
     parts: list[str] = []
     for key in topic_keys:
@@ -190,7 +192,7 @@ def _sanitize_approval_summary(params: dict[str, Any]) -> str:
         parts.append("operation only")
     summary = "; ".join(parts)
     summary = re.sub(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", "[email]", summary)
-    summary = re.sub(r"/Users/[^/\s]+", "[home]", summary)
+    summary = redact_home_paths(summary)
     return summary
 
 

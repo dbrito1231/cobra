@@ -159,3 +159,29 @@ class TestAppControlTool:
             with patch("tools.builtin.app_control._run", return_value=mock_process):
                 result = app_control.handle(ToolCall("app_control", {"operation": "list"}))
         assert result["applications"] == ["Finder", "Safari"]
+
+    def test_open_windows(self) -> None:
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stdout = ""
+        mock_process.stderr = ""
+        with patch("tools.builtin.app_control.platform.system", return_value="Windows"):
+            with patch("tools.builtin.app_control._run", return_value=mock_process) as mock_run:
+                result = app_control.handle(
+                    ToolCall("app_control", {"operation": "open", "url": "https://example.com"})
+                )
+        assert result["status"] == "opened"
+        assert mock_run.call_args[0][0][:3] == ["cmd", "/c", "start"]
+
+    def test_close_windows(self) -> None:
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stdout = ""
+        mock_process.stderr = ""
+        with patch("tools.builtin.app_control.platform.system", return_value="Windows"):
+            with patch("tools.builtin.app_control._run", return_value=mock_process) as mock_run:
+                result = app_control.handle(
+                    ToolCall("app_control", {"operation": "close", "app_name": "notepad.exe"})
+                )
+        assert result["status"] == "closed"
+        assert mock_run.call_args[0][0][:2] == ["taskkill", "/IM"]

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from brain.seed_document import InterviewStage
@@ -64,6 +66,7 @@ def _complete_voice(voice: VoiceService) -> None:
     voice.cloning.session.samples = [str(sample_path)]
     voice.cloning.session.sample_seconds = voice.config.minimum_enrollment_seconds
     voice.cloning.train_local_model()
+    voice.cloning._synthesizer = MagicMock(available=True)
     voice.cloning.approve_clone()
 
 

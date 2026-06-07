@@ -73,3 +73,4 @@ _None specific to this component._
 - [component-registry.md](component-registry.md)
 - [specs/configuration/startup-flow.md](../configuration/startup-flow.md)
 - [specs/mcp-server-layer/startup-validation.md](../mcp-server-layer/startup-validation.md)
+- [../platform-support.md](../platform-support.md) — launch model per OS

@@ -72,10 +72,16 @@ def _parse_ioreg_brightness(stdout: str) -> int | None:
 
 
 def _get_brightness() -> int | None:
-    process = _run(["ioreg", "-l", "-w", "0"], check=False)
-    if process.returncode != 0:
+    result = subprocess.run(
+        ["ioreg", "-l", "-w", "0"],
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    if result.returncode != 0:
         return None
-    return _parse_ioreg_brightness(process.stdout)
+    stdout = result.stdout.decode("utf-8", errors="replace")
+    return _parse_ioreg_brightness(stdout)
 
 
 def _set_brightness(level: int) -> dict[str, Any]:
@@ -138,6 +144,45 @@ def _get_wifi_status() -> dict[str, Any]:
     }
 
 
+def _set_volume_linux(level: int) -> dict[str, Any]:
+    bounded = max(0, min(100, int(level)))
+    if shutil.which("pactl"):
+        process = _run(
+            ["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{bounded}%"],
+            check=False,
+        )
+    elif shutil.which("amixer"):
+        process = _run(["amixer", "set", "Master", f"{bounded}%"], check=False)
+    else:
+        return {
+            "operation": "volume",
+            "status": "unsupported",
+            "message": "Install pactl (PulseAudio) or amixer (ALSA) for Linux volume control.",
+        }
+    if process.returncode != 0:
+        error = (process.stderr or process.stdout or "volume change failed").strip()
+        raise RuntimeError(error)
+    return {"operation": "volume", "status": "set", "level": bounded}
+
+
+def _set_volume_windows(level: int) -> dict[str, Any]:
+    bounded = max(0, min(100, int(level)))
+    nircmd = shutil.which("nircmd")
+    if nircmd:
+        scalar = int(bounded * 655.35)
+        process = _run([nircmd, "setsysvolume", str(scalar)], check=False)
+        if process.returncode != 0:
+            error = (process.stderr or process.stdout or "volume change failed").strip()
+            raise RuntimeError(error)
+        return {"operation": "volume", "status": "set", "level": bounded}
+    return {
+        "operation": "volume",
+        "status": "partial",
+        "level": bounded,
+        "message": "Windows volume control requires nircmd or use Tier 1 macOS for full system control.",
+    }
+
+
 def _status_payload() -> dict[str, Any]:
     payload: dict[str, Any] = {
         "operation": "status",
@@ -162,18 +207,36 @@ def handle(call: ToolCall) -> dict[str, Any]:
     if operation in {"status", "read"}:
         return _status_payload() | {"operation": operation}
 
-    if not _is_darwin():
+    if operation in {"notifications", "settings"}:
         return {
             "operation": operation,
             "status": "unsupported",
-            "message": f"Operation '{operation}' is only implemented on macOS.",
+            "message": f"Operation '{operation}' is not implemented on any platform yet.",
         }
 
     if operation == "volume":
         level = call.params.get("level")
         if level is None:
             raise ValueError("volume operation requires level (0-100).")
-        return _set_volume(int(level))
+        system = platform.system()
+        if _is_darwin():
+            return _set_volume(int(level))
+        if system == "Linux":
+            return _set_volume_linux(int(level))
+        if system == "Windows":
+            return _set_volume_windows(int(level))
+        return {
+            "operation": "volume",
+            "status": "unsupported",
+            "message": "Volume control is not supported on this OS.",
+        }
+
+    if not _is_darwin():
+        return {
+            "operation": operation,
+            "status": "unsupported",
+            "message": f"Operation '{operation}' is only implemented on macOS.",
+        }
 
     if operation == "brightness":
         level = call.params.get("level")
