@@ -41,6 +41,12 @@
 
       <aside id="status-panel" class="panel status-panel">
         <section class="status-section">
+          <h3>Component Health</h3>
+          <ul id="health-list" class="health-list">
+            <li class="health-empty">No health data yet</li>
+          </ul>
+        </section>
+        <section class="status-section">
           <h3>Active Pipeline Step</h3>
           <div id="pipeline-status" class="pipeline-status">
             <span id="pipeline-label">Idle</span>
@@ -63,6 +69,37 @@
         </section>
       </aside>
     </main>
+  </div>
+
+  <div id="wizard-overlay" class="wizard-overlay" hidden>
+    <div class="wizard-dialog">
+      <h2>First-Time Setup</h2>
+      <p>Configure C.O.B.R.A. before first use.</p>
+      <form id="wizard-form">
+        <label>LM Studio endpoint<input name="model_endpoint" value="http://127.0.0.1:1234"></label>
+        <label>Model ID<input name="model_id" placeholder="local-model"></label>
+        <label>Claude API key<input name="claude_api_key" type="password"></label>
+        <label>Copilot API key<input name="copilot_api_key" type="password"></label>
+        <button class="btn btn-primary" type="submit">Save configuration</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="lock-overlay" class="lock-overlay" hidden>
+    <div class="lock-dialog">
+      <h2>C.O.B.R.A. Locked</h2>
+      <p>Auto-lock is active. Input is disabled until you unlock.</p>
+    </div>
+  </div>
+
+  <div id="lm-studio-banner" class="lm-studio-banner" hidden>
+    <span id="lm-studio-message"></span>
+    <button id="lm-studio-cancel" class="btn btn-ghost" type="button">Cancel wait</button>
+  </div>
+
+  <div id="seed-banner" class="seed-banner" hidden>
+    <span id="seed-banner-message">Complete the personality interview so C.O.B.R.A. can mirror your voice.</span>
+    <span id="seed-banner-resume" class="seed-banner-resume"></span>
   </div>
 
   <div id="search-overlay" class="search-overlay" hidden>

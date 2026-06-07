@@ -8,7 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlparse
 
-from security.models import AnomalyAlert, ApprovalStatus, RequestOutcome
+from security.models import AnomalyAlert, ApprovalStatus
 from security.audit import OutboundAuditLog
 from security.privacy import sanitize_query
 
@@ -44,13 +44,6 @@ class AnomalyDetector:
 
         normalized = self._normalize_destination(destination)
         if self._is_known(normalized):
-            self.audit_log.audit_outbound(
-                destination,
-                sanitized_query,
-                trigger=trigger,
-                approval_status=approval_status,
-                outcome=RequestOutcome.SUCCESS,
-            )
             return True
 
         alert = AnomalyAlert(
@@ -58,13 +51,6 @@ class AnomalyDetector:
             sanitized_detail=sanitize_query(sanitized_query),
         )
         self._record_anomaly(alert)
-        self.audit_log.audit_outbound(
-            destination,
-            sanitized_query,
-            trigger=trigger,
-            approval_status=approval_status,
-            outcome=RequestOutcome.BLOCKED,
-        )
         if self._on_alert:
             self._on_alert(alert)
         return False

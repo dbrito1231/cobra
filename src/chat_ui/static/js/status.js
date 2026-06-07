@@ -6,6 +6,7 @@ export class StatusPanel {
     this.pipelineElapsed = elements.pipelineElapsed;
     this.pipelineStatus = elements.pipelineStatus;
     this.mcpList = elements.mcpList;
+    this.healthList = elements.healthList;
     this.proactiveCount = elements.proactiveCount;
     this.proactivePreview = elements.proactivePreview;
     this.tellMeNowBtn = elements.tellMeNowBtn;
@@ -31,6 +32,41 @@ export class StatusPanel {
     this.setVoiceState(payload.voice_state);
     this.setMcpServers(payload.mcp_servers || []);
     this.setProactiveQueue(payload.proactive_count, payload.proactive_top);
+    this.setComponentHealth(payload.component_health || []);
+  }
+
+  setComponentHealth(components) {
+    if (!this.healthList) return;
+    this.healthList.innerHTML = "";
+    if (!components.length) {
+      this.healthList.innerHTML = '<li class="health-empty">No health data yet</li>';
+      return;
+    }
+    components.forEach((item) => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span>${escapeHtml(item.name)}</span>
+        <span class="health-status ${item.state}">${escapeHtml(item.state)}</span>
+      `;
+      li.title = item.message || "";
+      this.healthList.appendChild(li);
+    });
+  }
+
+  showAnomalyAlert(payload) {
+    const banner = document.createElement("div");
+    banner.className = "anomaly-banner";
+    banner.textContent = `Security alert: ${payload.destination} — ${payload.detail}`;
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove(), 8000);
+  }
+
+  showConfigNotify(message) {
+    const banner = document.createElement("div");
+    banner.className = "config-banner";
+    banner.textContent = message;
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove(), 5000);
   }
 
   setPipeline(step, label) {

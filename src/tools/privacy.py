@@ -16,6 +16,17 @@ HOME_PATH_RE = re.compile(r"/Users/[^/\s]+")
 
 SEND_ACTIONS = {"send", "deliver", "post", "publish"}
 
+_WIKI_DIR = Path.home() / ".cobra" / "wiki"
+_LOGS_DIR = Path.home() / ".cobra" / "logs"
+
+
+def configure_paths(*, wiki_dir: Path, logs_dir: Path) -> None:
+    """Set storage paths from configuration at tools init."""
+
+    global _WIKI_DIR, _LOGS_DIR
+    _WIKI_DIR = wiki_dir
+    _LOGS_DIR = logs_dir
+
 
 def sanitize_text(value: str) -> str:
     """Best-effort removal of personal context from outbound strings."""
@@ -65,10 +76,10 @@ def enforce_draft_local_only(call: ToolCall) -> None:
 def local_tool_log_path() -> Path:
     """PR3: tool logs are local-only under the user's C.O.B.R.A. directory."""
 
-    return Path.home() / ".cobra" / "tools-log.jsonl"
+    return _LOGS_DIR / "tools-log.jsonl"
 
 
 def wiki_tool_log_path() -> Path:
     """Dedicated wiki Tools log page (tool-memory.md TM1–TM4)."""
 
-    return Path.home() / ".cobra" / "wiki" / "tools-log.md"
+    return _WIKI_DIR / "tools-log.md"

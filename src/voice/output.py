@@ -8,6 +8,7 @@ from typing import Union
 
 from voice.config import VoiceConfig
 from voice.models import MoodResult, VoiceModelStatus
+from voice.tts import TTSSynthesizer
 
 OutputHandler = Callable[
     [str, MoodResult], Union[Awaitable[None], None]
@@ -23,15 +24,30 @@ class VoiceOutput:
         *,
         on_text: OutputHandler | None = None,
         on_speech: Callable[[str, float], None] | None = None,
+        on_audio: Callable[[bytes], None] | None = None,
+        synthesizer: TTSSynthesizer | None = None,
     ) -> None:
         self.config = config
         self._on_text = on_text
         self._on_speech = on_speech
+        self._on_audio = on_audio
+        self._synthesizer = synthesizer or TTSSynthesizer(config)
+
+    @property
+    def tts_backend(self) -> str:
+        return self._synthesizer.backend
 
     def model_status(self) -> VoiceModelStatus:
         marker = self.config.model_marker_path
-        if marker.exists():
+        speaker = self.config.speaker_wav_path
+        if marker.exists() and speaker.exists():
             return VoiceModelStatus(ready=True, path=str(self.config.voice_model_path))
+        if marker.exists() and not speaker.exists():
+            return VoiceModelStatus(
+                ready=False,
+                path=str(self.config.voice_model_path),
+                message="Voice model marker present but speaker clip missing",
+            )
         return VoiceModelStatus(
             ready=False,
             path=str(self.config.voice_model_path),
@@ -53,13 +69,24 @@ class VoiceOutput:
                 await result
 
         status = self.model_status()
-        if self.config.output_mode in {"both", "voice"} and status.ready and self._on_speech:
+        voice_requested = self.config.output_mode in {"both", "voice"}
+        if not voice_requested or not status.ready:
+            return
+
+        audio = self._synthesizer.synthesize(text, rate=rate)
+        if audio and self._on_audio:
+            self._on_audio(audio)
+        elif self._on_speech:
             self._on_speech(text, rate)
 
     def mark_model_ready(self) -> None:
         self.config.voice_model_path.mkdir(parents=True, exist_ok=True)
         self.config.model_marker_path.write_text("ready\n", encoding="utf-8")
+        if not self.config.speaker_wav_path.exists():
+            self.config.speaker_wav_path.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
 
     def remove_model(self) -> None:
         if self.config.model_marker_path.exists():
             self.config.model_marker_path.unlink()
+        if self.config.speaker_wav_path.exists():
+            self.config.speaker_wav_path.unlink()

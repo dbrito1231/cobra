@@ -7,6 +7,7 @@ from pathlib import Path
 
 from voice.config import VoiceConfig
 from voice.output import VoiceOutput
+from voice.tts import TTSSynthesizer
 
 GUIDED_PROMPTS = [
     "The quick brown fox jumps over the lazy dog.",
@@ -34,11 +35,18 @@ class CloningSession:
 class VoiceCloningManager:
     """Guided local voice cloning workflow."""
 
-    def __init__(self, config: VoiceConfig, output: VoiceOutput) -> None:
+    def __init__(
+        self,
+        config: VoiceConfig,
+        output: VoiceOutput,
+        *,
+        synthesizer: TTSSynthesizer | None = None,
+    ) -> None:
         self.config = config
         self.output = output
         self.session = CloningSession()
         self.samples_dir = config.voice_model_path / "samples"
+        self._synthesizer = synthesizer or TTSSynthesizer(config)
 
     def next_prompt(self) -> str | None:
         if self.session.prompts_completed >= len(GUIDED_PROMPTS):
@@ -56,9 +64,18 @@ class VoiceCloningManager:
     def train_local_model(self) -> bool:
         if not self.session.ready_for_training:
             return False
-        self.config.voice_model_path.mkdir(parents=True, exist_ok=True)
-        model_file = self.config.voice_model_path / "model.bin"
-        model_file.write_bytes(b"local-xtts-stub")
+
+        if self._synthesizer.available:
+            if not self._synthesizer.train_from_samples(self.session.samples):
+                return False
+        else:
+            self.config.voice_model_path.mkdir(parents=True, exist_ok=True)
+            model_file = self.config.voice_model_path / "model.bin"
+            model_file.write_bytes(b"local-xtts-stub")
+            speaker = self.config.speaker_wav_path
+            if self.session.samples:
+                speaker.write_bytes(self.session.samples[0].read_bytes())
+
         self.output.mark_model_ready()
         return True
 

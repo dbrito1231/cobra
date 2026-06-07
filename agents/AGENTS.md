@@ -235,6 +235,10 @@ Keep this table current. It is your memory of where each capability is specified
 | Lifecycle logging | `specs/orchestrator/lifecycle-logging.md` | orchestrator |
 | Graceful shutdown | `specs/orchestrator/graceful-shutdown.md` | orchestrator |
 | Event bus / inter-component comms | `specs/orchestrator/inter-component-communication.md` | orchestrator |
+| Component overviews | `specs/brain/brain-overview.md`, `specs/chat-ui/chat-ui-overview.md`, `specs/configuration/configuration-overview.md`, `specs/mcp-server-layer/mcp-server-layer-overview.md`, `specs/orchestrator/orchestrator-overview.md`, `specs/security/security-overview.md`, `specs/seed-document/seed-document-overview.md`, `specs/tools/tools-overview.md`, `specs/voice/voice-overview.md` | respective agent |
+| Implementation plans | `specs/brain/implementation-plan.md`, `specs/chat-ui/implementation-plan.md`, `specs/configuration/implementation-plan.md`, `specs/mcp-server-layer/implementation-plan.md`, `specs/orchestrator/implementation-plan.md`, `specs/security/implementation-plan.md`, `specs/seed-document/implementation-plan.md`, `specs/tools/implementation-plan.md`, `specs/voice/implementation-plan.md` | respective agent |
+| Privacy rules (per component) | `specs/brain/privacy.md`, `specs/configuration/privacy.md`, `specs/mcp-server-layer/privacy.md`, `specs/security/privacy.md`, `specs/tools/privacy.md`, `specs/voice/privacy.md` | respective agent |
+| Flow diagrams | `specs/brain-flow.mermaid`, `specs/chat-ui-flow.mermaid`, `specs/configuration-flow.mermaid`, `specs/mcp-server-layer-flow.mermaid`, `specs/orchestrator-flow.mermaid`, `specs/security-flow.mermaid`, `specs/seed-document-flow.mermaid`, `specs/tools-flow.mermaid`, `specs/voice-flow.mermaid` | respective agent |
 
 > Keep this index in sync whenever a spec file is added, removed, or renamed. The Spec Sync Agent flags any spec file not present in this index.
 

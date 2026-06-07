@@ -10,6 +10,8 @@ export class ChatPanel {
     this.pendingIndicators = new Map();
     this.inlineTimers = new Map();
     this.onSend = null;
+    this.onApproval = null;
+    this.onFailure = null;
 
     this.formEl.addEventListener("submit", (e) => this.handleSubmit(e));
     this.inputEl.addEventListener("keydown", (e) => {
@@ -138,12 +140,76 @@ export class ChatPanel {
     this.scrollToBottom();
   }
 
+  showFailureCard(request) {
+    const el = document.createElement("div");
+    el.className = "failure-card";
+    el.dataset.eventId = request.event_id;
+    el.innerHTML = `
+      <h4>Component Failure</h4>
+      <div class="approval-field"><strong>Component</strong>${escapeHtml(request.component)}</div>
+      <div class="approval-field"><strong>State</strong>${escapeHtml(request.state)}</div>
+      <div class="approval-field"><strong>Details</strong>${escapeHtml(request.message)}</div>
+      <div class="approval-actions">
+        <button class="btn btn-approve" data-action="restart_component">Restart</button>
+        <button class="btn btn-deny" data-action="ignore">Ignore</button>
+        <button class="btn btn-accent" data-action="restart_all">Restart All</button>
+      </div>
+    `;
+    el.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this.onFailure?.(request.event_id, btn.dataset.action);
+        el.remove();
+      });
+    });
+    this.historyEl.appendChild(el);
+    this.scrollToBottom();
+  }
+
   showProactiveCard(item) {
     const el = document.createElement("div");
     el.className = "proactive-card";
     el.innerHTML = `
       <h4>Proactive Item</h4>
       <p>${escapeHtml(item.preview)}</p>
+    `;
+    this.historyEl.appendChild(el);
+    this.scrollToBottom();
+  }
+
+  showSeedPrompt(payload) {
+    const el = document.createElement("div");
+    el.className = "seed-card";
+    el.innerHTML = `
+      <h4>Personality Interview</h4>
+      <div class="seed-stage">${escapeHtml(payload.stage || "")}</div>
+      <p>${escapeHtml(payload.content || "")}</p>
+      ${payload.question ? `<p><strong>Question:</strong> ${escapeHtml(payload.question)}</p>` : ""}
+    `;
+    this.historyEl.appendChild(el);
+    this.scrollToBottom();
+  }
+
+  showSeedConfirm(payload) {
+    const el = document.createElement("div");
+    el.className = "seed-card";
+    el.innerHTML = `
+      <h4>Confirm Understanding</h4>
+      <div class="seed-stage">${escapeHtml(payload.stage || "")}</div>
+      <p>${escapeHtml(payload.reflection || "")}</p>
+      <p><em>${escapeHtml(payload.question || "Does that capture what you meant?")}</em></p>
+    `;
+    this.historyEl.appendChild(el);
+    this.scrollToBottom();
+  }
+
+  showSeedSummaryReview(payload) {
+    const el = document.createElement("div");
+    el.className = "seed-card";
+    el.innerHTML = `
+      <h4>Review Summary</h4>
+      <div class="seed-stage">${escapeHtml(payload.stage || "")}</div>
+      <p>${escapeHtml(payload.summary || "")}</p>
+      <p><em>${escapeHtml(payload.prompt || "Reply approve to save or send edits.")}</em></p>
     `;
     this.historyEl.appendChild(el);
     this.scrollToBottom();

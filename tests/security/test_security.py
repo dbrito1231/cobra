@@ -54,8 +54,7 @@ class TestAnomalyDetector:
         allowed = detector.check_outbound("evil.example.com", "probe")
         assert allowed is False
         assert len(alerts) == 1
-        blocked = audit.read_entries()[-1]
-        assert blocked["outcome"] == RequestOutcome.BLOCKED.value
+        assert audit.read_entries() == []
 
     def test_allows_known_destination(
         self, tmp_security_config: SecurityConfig

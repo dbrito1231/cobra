@@ -140,6 +140,30 @@ class TestOrchestrator:
         monkeypatch.setenv("COBRA_SKIP_LM_STUDIO", "1")
         from orchestrator.bootstrap import build_default_orchestrator
 
-        orchestrator = build_default_orchestrator({})
+        config_dict = {
+            "version": "1.0",
+            "active_profile": "default",
+            "profiles": {
+                "default": {
+                    "name": "Default",
+                    "model": {
+                        "provider": "lm_studio",
+                        "endpoint": "http://127.0.0.1:1234",
+                        "model_id": "test",
+                    },
+                    "api_keys": {
+                        "claude": "sk-test-claude-key",
+                        "copilot": "copilot-test-key",
+                    },
+                    "storage": {
+                        "wiki_dir": "/tmp/cobra-test/wiki",
+                        "memory_dir": "/tmp/cobra-test/memory",
+                        "logs_dir": "/tmp/cobra-test/logs",
+                        "backups_dir": "/tmp/cobra-test/backups",
+                    },
+                }
+            },
+        }
+        orchestrator = build_default_orchestrator(config_dict=config_dict)
         assert await orchestrator.start()
         await orchestrator.shutdown()

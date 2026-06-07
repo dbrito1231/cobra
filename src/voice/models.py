@@ -59,12 +59,14 @@ class TranscribedTextEvent:
 
     text: str
     mood: MoodResult
+    confidence: float = 1.0
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "text": self.text,
             "mood": self.mood.to_context(),
+            "confidence": self.confidence,
             "timestamp": self.timestamp.isoformat(),
         }
 

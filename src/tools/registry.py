@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from tools.models import ActionType, ToolCall, ToolMeta
 
 
@@ -109,6 +112,7 @@ TOOL_CATALOG: dict[str, ToolMeta] = {
         operation_action_types={
             "status": ActionType.READ_ONLY,
             "read": ActionType.READ_ONLY,
+            "wifi": ActionType.READ_ONLY,
             "volume": ActionType.DESTRUCTIVE,
             "brightness": ActionType.DESTRUCTIVE,
             "notifications": ActionType.DESTRUCTIVE,
@@ -124,6 +128,9 @@ TOOL_CATALOG: dict[str, ToolMeta] = {
 }
 
 
+CUSTOM_HANDLERS: dict[str, Callable[[ToolCall], Any]] = {}
+
+
 class UnknownToolError(ValueError):
     """Raised when the brain requests a tool outside the catalog."""
 
@@ -133,6 +140,12 @@ def get_tool_meta(tool_name: str) -> ToolMeta:
         return TOOL_CATALOG[tool_name]
     except KeyError as exc:
         raise UnknownToolError(f"Unknown tool: {tool_name}") from exc
+
+
+def register_custom_handler(name: str, handler: Callable[[ToolCall], Any]) -> None:
+    """Store a callable handler for a registered custom tool."""
+
+    CUSTOM_HANDLERS[name] = handler
 
 
 def classify_tool_call(call: ToolCall) -> ActionType:

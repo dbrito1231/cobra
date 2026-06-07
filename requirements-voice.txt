@@ -1,0 +1,12 @@
+# Optional voice production dependencies for C.O.B.R.A.
+# Install: pip install -r requirements-voice.txt
+#
+# These packages are heavy (ML models, audio drivers). Core tests and dev
+# workflows run without them via stub/fallback paths in src/voice/.
+
+faster-whisper
+sounddevice
+openwakeword
+# Coqui TTS (XTTS voice cloning + synthesis). GPU/CUDA strongly recommended
+# for training and real-time inference; CPU-only works but is much slower.
+TTS

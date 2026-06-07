@@ -70,15 +70,21 @@ class SecurityService:
             trigger=trigger,
             approval_status=approval_status,
         ):
-            return
-        if outcome != RequestOutcome.SUCCESS:
             self.audit_log.audit_outbound(
                 destination,
                 sanitized_query,
                 trigger=trigger,
                 approval_status=approval_status,
-                outcome=outcome,
+                outcome=RequestOutcome.BLOCKED,
             )
+            return
+        self.audit_log.audit_outbound(
+            destination,
+            sanitized_query,
+            trigger=trigger,
+            approval_status=approval_status,
+            outcome=outcome,
+        )
 
     def is_input_allowed(self) -> bool:
         return self.auto_lock.is_input_allowed()

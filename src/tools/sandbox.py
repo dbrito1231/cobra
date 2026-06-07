@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from tools.builtin import dispatch_builtin
+from tools.config import sandbox_enabled_for_call
 from tools.models import ToolCall, ToolResult
 
 
@@ -101,6 +102,6 @@ def run_unsandboxed(call: ToolCall) -> ToolResult:
 def run_tool(call: ToolCall) -> ToolResult:
     """Node L: choose sandboxed default or explicit per-call override."""
 
-    if call.sandboxed:
+    if sandbox_enabled_for_call(call):
         return run_sandboxed(call)
     return run_unsandboxed(call)

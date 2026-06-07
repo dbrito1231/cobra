@@ -97,6 +97,69 @@ class ProactiveItem:
         return asdict(self)
 
 
+@dataclass
+class ComponentHealthEntry:
+    name: str
+    state: str
+    message: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class FailurePromptPayload:
+    event_id: str
+    component: str
+    state: str
+    message: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class SeedPromptPayload:
+    stage: str
+    phase: str
+    content: str
+    question: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class SeedConfirmPayload:
+    stage: str
+    reflection: str
+    question: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class SeedSummaryReviewPayload:
+    stage: str
+    summary: str
+    prompt: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class SeedModePayload:
+    active: bool
+    stage: str = ""
+    phase: str = ""
+    resume_label: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def _sanitize_approval_summary(params: dict[str, Any]) -> str:
     """Topic-level preview for approval cards — no raw personal data."""
 
@@ -229,6 +292,62 @@ class WebSocketEvent:
         return cls(type="proactive_surfaced", payload=item.to_dict())
 
     @classmethod
+    def component_health(cls, components: list[ComponentHealthEntry]) -> "WebSocketEvent":
+        return cls(
+            type="component_health",
+            payload={"components": [item.to_dict() for item in components]},
+        )
+
+    @classmethod
+    def failure_prompt(cls, request: FailurePromptPayload) -> "WebSocketEvent":
+        return cls(type="failure_prompt", payload=request.to_dict())
+
+    @classmethod
+    def failure_resolved(cls, event_id: str, action: str) -> "WebSocketEvent":
+        return cls(
+            type="failure_resolved",
+            payload={"event_id": event_id, "action": action},
+        )
+
+    @classmethod
+    def lock_state(cls, locked: bool) -> "WebSocketEvent":
+        return cls(type="lock_state", payload={"locked": locked})
+
+    @classmethod
+    def anomaly_alert(cls, destination: str, detail: str, timestamp: str) -> "WebSocketEvent":
+        return cls(
+            type="anomaly_alert",
+            payload={"destination": destination, "detail": detail, "timestamp": timestamp},
+        )
+
+    @classmethod
+    def lm_studio_wait(cls, *, waiting: bool, message: str) -> "WebSocketEvent":
+        return cls(
+            type="lm_studio_wait",
+            payload={"waiting": waiting, "message": message},
+        )
+
+    @classmethod
+    def seed_prompt(cls, payload: SeedPromptPayload) -> "WebSocketEvent":
+        return cls(type="seed_prompt", payload=payload.to_dict())
+
+    @classmethod
+    def seed_confirm(cls, payload: SeedConfirmPayload) -> "WebSocketEvent":
+        return cls(type="seed_confirm", payload=payload.to_dict())
+
+    @classmethod
+    def seed_summary_review(cls, payload: SeedSummaryReviewPayload) -> "WebSocketEvent":
+        return cls(type="seed_summary_review", payload=payload.to_dict())
+
+    @classmethod
+    def seed_mode(cls, payload: SeedModePayload) -> "WebSocketEvent":
+        return cls(type="seed_mode", payload=payload.to_dict())
+
+    @classmethod
+    def config_notify(cls, message: str) -> "WebSocketEvent":
+        return cls(type="config_notify", payload={"message": message})
+
+    @classmethod
     def status_snapshot(
         cls,
         *,
@@ -238,6 +357,10 @@ class WebSocketEvent:
         proactive_count: int,
         proactive_top: ProactiveItem | None,
         profile_name: str,
+        locked: bool = False,
+        component_health: list[ComponentHealthEntry] | None = None,
+        lm_studio_waiting: bool = False,
+        lm_studio_message: str = "",
     ) -> "WebSocketEvent":
         return cls(
             type="status_snapshot",
@@ -249,5 +372,11 @@ class WebSocketEvent:
                 "proactive_count": proactive_count,
                 "proactive_top": proactive_top.to_dict() if proactive_top else None,
                 "profile_name": profile_name,
+                "locked": locked,
+                "component_health": [
+                    item.to_dict() for item in (component_health or [])
+                ],
+                "lm_studio_waiting": lm_studio_waiting,
+                "lm_studio_message": lm_studio_message,
             },
         )

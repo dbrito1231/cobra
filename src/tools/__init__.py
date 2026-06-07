@@ -1,6 +1,7 @@
 """C.O.B.R.A. tools component public API."""
 
 from tools.chaining import ToolChain
+from tools.config import ToolsConfig
 from tools.executor import (
     execute_chain,
     execute_tool,
@@ -12,6 +13,7 @@ from tools.executor import (
     resolve_failure,
 )
 from tools.models import ActionType, ApprovalEvent, FailureEvent, ToolCall, ToolResult
+from tools.service import ToolsService
 
 __all__ = [
     "ActionType",
@@ -20,6 +22,8 @@ __all__ = [
     "ToolCall",
     "ToolChain",
     "ToolResult",
+    "ToolsConfig",
+    "ToolsService",
     "execute_chain",
     "execute_tool",
     "pending_approvals",

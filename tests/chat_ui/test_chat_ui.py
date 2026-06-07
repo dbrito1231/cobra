@@ -179,6 +179,30 @@ class TestChatUIServer:
         )
         assert response.status_code == 200
 
+    def test_failure_endpoint(self, client: TestClient) -> None:
+        response = client.post(
+            "/api/failure",
+            json={"event_id": "fail-id", "action": "ignore"},
+        )
+        assert response.status_code == 200
+
+    def test_chat_blocked_when_locked(self, client: TestClient, server: ChatUIServer) -> None:
+        server.locked = True
+        response = client.post("/api/chat", json={"text": "Hello"})
+        assert response.status_code == 403
+
+    def test_component_health_event(self) -> None:
+        from chat_ui.models import ComponentHealthEntry
+
+        event = WebSocketEvent.component_health(
+            [ComponentHealthEntry(name="brain", state="healthy", message="ok")]
+        )
+        assert event.payload["components"][0]["name"] == "brain"
+
+    def test_lock_state_event(self) -> None:
+        event = WebSocketEvent.lock_state(True)
+        assert event.payload["locked"] is True
+
     @pytest.mark.asyncio
     async def test_push_events(self, server: ChatUIServer) -> None:
         await server.set_voice_state(VoiceState.LISTENING)

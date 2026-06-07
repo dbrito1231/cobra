@@ -21,6 +21,7 @@ const status = new StatusPanel({
   pipelineElapsed: document.getElementById("pipeline-elapsed"),
   pipelineStatus: document.getElementById("pipeline-status"),
   mcpList: document.getElementById("mcp-list"),
+  healthList: document.getElementById("health-list"),
   proactiveCount: document.getElementById("proactive-count"),
   proactivePreview: document.getElementById("proactive-preview"),
   tellMeNowBtn: document.getElementById("tell-me-now"),
@@ -28,6 +29,14 @@ const status = new StatusPanel({
   voiceLabel: document.getElementById("voice-label"),
   profileName: document.getElementById("profile-name"),
 });
+
+const lockOverlay = document.getElementById("lock-overlay");
+const lmStudioBanner = document.getElementById("lm-studio-banner");
+const lmStudioMessage = document.getElementById("lm-studio-message");
+const seedBanner = document.getElementById("seed-banner");
+const seedBannerResume = document.getElementById("seed-banner-resume");
+const chatInput = document.getElementById("chat-input");
+const sendButton = document.getElementById("send-button");
 
 const search = new SearchOverlay(
   document.getElementById("search-overlay"),
@@ -54,6 +63,35 @@ chat.onApproval = async (eventId, approved) => {
   });
 };
 
+chat.onFailure = async (eventId, action) => {
+  await fetch("/api/failure", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event_id: eventId, action }),
+  });
+};
+
+document.getElementById("lm-studio-cancel").addEventListener("click", async () => {
+  await fetch("/api/lm-studio/cancel", { method: "POST" });
+});
+
+function setLocked(locked) {
+  lockOverlay.hidden = !locked;
+  chatInput.disabled = locked;
+  sendButton.disabled = locked;
+}
+
+function setLmStudioWait(waiting, message) {
+  lmStudioBanner.hidden = !waiting;
+  lmStudioMessage.textContent = message || "";
+  if (waiting) seedBanner.hidden = true;
+}
+
+function setSeedMode(active, resumeLabel) {
+  seedBanner.hidden = !active;
+  seedBannerResume.textContent = active && resumeLabel ? `Resume: ${resumeLabel}` : "";
+}
+
 status.onTellMeNow = async () => {
   await fetch("/api/proactive/tell-me-now", { method: "POST" });
 };
@@ -71,7 +109,33 @@ search.onJump = async (result) => {
 
 document.getElementById("search-button").addEventListener("click", () => search.open());
 
-ws.on("status_snapshot", (payload) => status.applySnapshot(payload));
+ws.on("status_snapshot", (payload) => {
+  status.applySnapshot(payload);
+  if (typeof payload.locked === "boolean") setLocked(payload.locked);
+  if (typeof payload.lm_studio_waiting === "boolean") {
+    setLmStudioWait(payload.lm_studio_waiting, payload.lm_studio_message);
+  }
+});
+
+ws.on("component_health", (payload) => status.setComponentHealth(payload.components || []));
+
+ws.on("failure_prompt", (payload) => chat.showFailureCard(payload));
+
+ws.on("lock_state", (payload) => setLocked(Boolean(payload.locked)));
+
+ws.on("anomaly_alert", (payload) => status.showAnomalyAlert(payload));
+
+ws.on("lm_studio_wait", (payload) => setLmStudioWait(Boolean(payload.waiting), payload.message));
+
+ws.on("seed_mode", (payload) => setSeedMode(Boolean(payload.active), payload.resume_label));
+
+ws.on("seed_prompt", (payload) => chat.showSeedPrompt(payload));
+
+ws.on("seed_confirm", (payload) => chat.showSeedConfirm(payload));
+
+ws.on("seed_summary_review", (payload) => chat.showSeedSummaryReview(payload));
+
+ws.on("config_notify", (payload) => status.showConfigNotify(payload.message));
 
 ws.on("session_history", (payload) => {
   chat.loadHistory(payload.messages || []);
@@ -107,3 +171,27 @@ ws.on("proactive_surfaced", (payload) => chat.showProactiveCard(payload));
 
 ws.connect();
 wiki.loadIndex().catch(console.error);
+
+async function checkWizard() {
+  const status = await fetch("/api/wizard/status").then((r) => r.json());
+  const overlay = document.getElementById("wizard-overlay");
+  if (status.needs_wizard) overlay.hidden = false;
+}
+
+document.getElementById("wizard-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const payload = Object.fromEntries(new FormData(form).entries());
+  const result = await fetch("/api/wizard/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then((r) => r.json());
+  if (result.status === "ok") {
+    document.getElementById("wizard-overlay").hidden = true;
+  } else {
+    alert(result.message || "Wizard failed");
+  }
+});
+
+checkWizard().catch(console.error);

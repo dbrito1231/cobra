@@ -4,5 +4,6 @@ requests
 fastapi
 uvicorn[standard]
 httpx
+pyyaml
 pytest
 pytest-asyncio

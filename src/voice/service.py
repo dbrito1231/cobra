@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any, Union
 
+from voice.audio_utils import generate_beep_wav
 from voice.cloning import VoiceCloningManager
 from voice.config import VoiceConfig
 from voice.input_pipeline import VoiceInputPipeline
@@ -15,9 +18,18 @@ from voice.output import VoiceOutput
 from voice.session import SessionLifecycle
 from voice.wake_word import WakeWordDetector
 
+try:
+    import sounddevice as sd
+
+    SOUNDDEVICE_AVAILABLE = True
+except ImportError:
+    SOUNDDEVICE_AVAILABLE = False
+    sd = None  # type: ignore[assignment]
+
 InputHandler = Callable[
     [TranscribedTextEvent], Union[Awaitable[Any], Any]
 ]
+AudioChunkHandler = Callable[[bytes], Union[Awaitable[Any], Any]]
 
 
 class VoiceService:
@@ -40,11 +52,15 @@ class VoiceService:
         self._input_allowed = input_allowed or (lambda: True)
         self._initialized = False
         self._last_spoken: list[str] = []
+        self._last_cue: bytes | None = None
+        self._mic_thread: threading.Thread | None = None
+        self._mic_stop = threading.Event()
 
         self.output = VoiceOutput(
             self.config,
             on_text=self._emit_text_output(on_text_output),
             on_speech=self._record_speech,
+            on_audio=self._play_synthesized_audio,
         )
         self.cloning = VoiceCloningManager(self.config, self.output)
         self.wake_word = WakeWordDetector(
@@ -66,11 +82,17 @@ class VoiceService:
 
     async def shutdown(self) -> None:
         self._initialized = False
+        self.stop_mic_loop()
         self.wake_word.activate_passive()
         self.lifecycle.on_session_end()
 
     async def handle_audio(self, audio: bytes) -> TranscribedTextEvent | None:
         if not self._initialized or not self._input_allowed():
+            return None
+
+        if not self.wake_word.active:
+            if self.wake_word.process_audio(audio):
+                return None
             return None
 
         result = self.input_pipeline.process_audio(audio)
@@ -134,6 +156,57 @@ class VoiceService:
     def last_spoken(self) -> list[str]:
         return list(self._last_spoken)
 
+    def last_audio_cue(self) -> bytes | None:
+        """Return the most recent cue WAV bytes (for tests)."""
+
+        return self._last_cue
+
+    @property
+    def mic_capture_available(self) -> bool:
+        return SOUNDDEVICE_AVAILABLE
+
+    def start_mic_loop(
+        self,
+        on_chunk: AudioChunkHandler,
+        *,
+        block_seconds: float = 0.5,
+    ) -> bool:
+        """Start a background mic capture loop when sounddevice is available."""
+
+        if not SOUNDDEVICE_AVAILABLE or self._mic_thread is not None:
+            return False
+
+        self._mic_stop.clear()
+
+        def _loop() -> None:
+            assert sd is not None
+            block_size = max(1, int(self.config.sample_rate * block_seconds))
+            while not self._mic_stop.is_set():
+                recording = sd.rec(
+                    block_size,
+                    samplerate=self.config.sample_rate,
+                    channels=1,
+                    dtype="int16",
+                )
+                sd.wait()
+                chunk = recording.tobytes() if hasattr(recording, "tobytes") else bytes(recording)
+                result = on_chunk(chunk)
+                if asyncio.iscoroutine(result):
+                    asyncio.run(result)
+
+        self._mic_thread = threading.Thread(target=_loop, daemon=True, name="voice-mic")
+        self._mic_thread.start()
+        return True
+
+    def stop_mic_loop(self) -> None:
+        self._mic_stop.set()
+        thread = self._mic_thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=1.0)
+            self._mic_thread = None
+        elif thread is not None:
+            self._mic_thread = None
+
     async def _handle_transcript(
         self,
         text: str,
@@ -142,7 +215,7 @@ class VoiceService:
     ) -> TranscribedTextEvent | None:
         self.lifecycle.on_user_speech()
         self._emit_state(SessionState.RESPONDING)
-        event = TranscribedTextEvent(text=text, mood=mood)
+        event = TranscribedTextEvent(text=text, mood=mood, confidence=confidence)
 
         if self._input_handler:
             result = self._input_handler(event)
@@ -163,7 +236,37 @@ class VoiceService:
         self._emit_state(SessionState.PASSIVE)
 
     def _play_audio_cue(self) -> None:
-        pass
+        if self.config.audio_cue_path and self.config.audio_cue_path.exists():
+            self._last_cue = Path(self.config.audio_cue_path).read_bytes()
+        else:
+            self._last_cue = generate_beep_wav(sample_rate=self.config.sample_rate)
+
+        if SOUNDDEVICE_AVAILABLE and self._last_cue is not None:
+            self._play_wav(self._last_cue)
+
+    def _play_synthesized_audio(self, audio: bytes) -> None:
+        if SOUNDDEVICE_AVAILABLE:
+            self._play_wav(audio)
+
+    def _play_wav(self, wav_bytes: bytes) -> None:
+        if not SOUNDDEVICE_AVAILABLE or sd is None:
+            return
+        import io
+        import struct
+        import wave
+
+        with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+            frames = wf.readframes(wf.getnframes())
+            sample_rate = wf.getframerate()
+            channels = wf.getnchannels()
+            sample_width = wf.getsampwidth()
+
+        if sample_width != 2:
+            return
+        count = len(frames) // 2
+        samples = struct.unpack(f"<{count}h", frames)
+        sd.play(samples, samplerate=sample_rate * channels)
+        sd.wait()
 
     def _emit_text_output(
         self, handler: Callable[[str], None] | None

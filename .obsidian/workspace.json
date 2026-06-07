@@ -181,17 +181,18 @@
   },
   "active": "4870cbd32f94a8ef",
   "lastOpenFiles": [
-    "tests/orchestrator/test_orchestrator.py",
-    "tests/orchestrator",
-    "tests/voice/test_voice.py",
-    "tests/voice",
-    "tests/security/test_security.py",
-    "tests/security",
-    "src/orchestrator/bootstrap.py",
-    "src/orchestrator/__init__.py",
-    "src/orchestrator/__main__.py",
-    "src/orchestrator/orchestrator.py",
-    "src/orchestrator/shutdown.py",
+    "tests/voice/test_voice_service.py",
+    "tests/voice/test_voice_config.py",
+    "tests/security/test_audit_logging.py",
+    "tests/tools/test_sandbox_session.py",
+    "tests/tools/test_extensibility.py",
+    "tests/tools/test_system_control.py",
+    "tests/voice/test_audio_utils.py",
+    "tests/voice/test_config.py",
+    "tests/voice/test_service.py",
+    "tests/voice/test_output.py",
+    "tests/voice/test_wake_word.py",
+    "specs/mcp-server-layer/http-transport.md",
     "AGENTS.md",
     "issues-and-gaps/tools-fix-plan-review2.md",
     "issues-and-gaps/tools-issues-and-gaps.md",
@@ -215,7 +216,6 @@
     "specs/orchestrator/health-monitoring.md",
     "specs/orchestrator/startup-phases.md",
     "specs/orchestrator/component-registry.md",
-    "specs/seed-document/implementation-plan.md",
-    "specs/seed-document/seed-document-overview.md"
+    "specs/seed-document/implementation-plan.md"
   ]
 }
