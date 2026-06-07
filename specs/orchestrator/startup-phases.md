@@ -31,6 +31,8 @@ Components start in the **fastest safe order** based on dependencies. Each compo
 
 Result: `READY` — C.O.B.R.A. Ready → populate [component-registry.md](component-registry.md).
 
+**Post-READY onboarding mode:** After `READY`, if first-run onboarding is incomplete ([specs/onboarding/first-run-sequence.md](../onboarding/first-run-sequence.md)), the Chat UI onboarding shell blocks normal operation until voice enrollment and seed interview (S1–S5) complete. Orchestrator publishes `onboarding.step` WebSocket events; Brain and Voice enforce input/TTS gates.
+
 ## Inputs / Outputs
 
 | Direction | Content |

@@ -8,7 +8,7 @@ import webbrowser
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Union, Union
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -24,6 +24,7 @@ from chat_ui.models import (
     FailurePromptPayload,
     McpServerStatus,
     McpStatus,
+    OnboardingStepPayload,
     PipelineStep,
     ProactiveItem,
     VoiceState,
@@ -45,6 +46,13 @@ InputAllowed = Callable[[], bool]
 LmStudioCancelHandler = Callable[[], Union[Awaitable[None], None]]
 WizardHandler = Callable[[dict[str, Any]], Union[Awaitable[dict[str, Any]], dict[str, Any]]]
 WizardStatusHandler = Callable[[], dict[str, Any]]
+SeedExportHandler = Callable[[], dict[str, str]]
+SeedStatusHandler = Callable[[], dict[str, Any]]
+VoiceEnrollmentStatusHandler = Callable[[], dict[str, Any]]
+VoiceEnrollmentSampleHandler = Callable[[bytes, Union[float, None]], dict[str, Any]]
+VoiceEnrollmentActionHandler = Callable[[], dict[str, Any]]
+OnboardingStatusHandler = Callable[[], dict[str, Any]]
+OnboardingNotifyHandler = Callable[[], None]
 
 
 class FailureDecision(BaseModel):
@@ -120,6 +128,16 @@ class ChatUIServer:
         self._lm_studio_cancel_handler: LmStudioCancelHandler | None = None
         self._wizard_handler: WizardHandler | None = None
         self._wizard_status_handler: WizardStatusHandler | None = None
+        self._seed_export_handler: SeedExportHandler | None = None
+        self._seed_status_handler: SeedStatusHandler | None = None
+        self._voice_enrollment_status_handler: VoiceEnrollmentStatusHandler | None = None
+        self._voice_enrollment_sample_handler: VoiceEnrollmentSampleHandler | None = None
+        self._voice_enrollment_train_handler: VoiceEnrollmentActionHandler | None = None
+        self._voice_enrollment_approve_handler: VoiceEnrollmentActionHandler | None = None
+        self._voice_enrollment_reject_handler: VoiceEnrollmentActionHandler | None = None
+        self._voice_enrollment_test_handler: VoiceEnrollmentActionHandler | None = None
+        self._onboarding_status_handler: OnboardingStatusHandler | None = None
+        self._onboarding_notify_handler: OnboardingNotifyHandler | None = None
         self._uvicorn: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -149,6 +167,41 @@ class ChatUIServer:
 
     def set_wizard_status_handler(self, handler: WizardStatusHandler) -> None:
         self._wizard_status_handler = handler
+
+    def set_seed_export_handler(self, handler: SeedExportHandler) -> None:
+        self._seed_export_handler = handler
+
+    def set_seed_status_handler(self, handler: SeedStatusHandler) -> None:
+        self._seed_status_handler = handler
+
+    def set_voice_enrollment_handlers(
+        self,
+        *,
+        status: VoiceEnrollmentStatusHandler,
+        sample: VoiceEnrollmentSampleHandler,
+        train: VoiceEnrollmentActionHandler,
+        approve: VoiceEnrollmentActionHandler,
+        reject: VoiceEnrollmentActionHandler,
+        test_playback: VoiceEnrollmentActionHandler,
+    ) -> None:
+        self._voice_enrollment_status_handler = status
+        self._voice_enrollment_sample_handler = sample
+        self._voice_enrollment_train_handler = train
+        self._voice_enrollment_approve_handler = approve
+        self._voice_enrollment_reject_handler = reject
+        self._voice_enrollment_test_handler = test_playback
+
+    def set_onboarding_handlers(
+        self,
+        *,
+        status: OnboardingStatusHandler,
+        notify: OnboardingNotifyHandler | None = None,
+    ) -> None:
+        self._onboarding_status_handler = status
+        self._onboarding_notify_handler = notify
+
+    async def push_onboarding_step(self, payload: dict[str, Any]) -> None:
+        await self.push_event(WebSocketEvent.onboarding_step_from_dict(payload))
 
     def health(self) -> tuple[bool, str, bool]:
         if self._thread is None or not self._thread.is_alive():
@@ -457,6 +510,94 @@ class ChatUIServer:
         async def tell_me_now() -> dict[str, str]:
             await self._surface_proactive()
             return {"status": "surfaced"}
+
+        @app.get("/api/seed/export")
+        async def seed_export() -> dict[str, str]:
+            if self._seed_export_handler is None:
+                raise HTTPException(status_code=503, detail="Seed export unavailable")
+            return self._seed_export_handler()
+
+        @app.get("/api/seed/status")
+        async def seed_status() -> dict[str, Any]:
+            if self._seed_status_handler is None:
+                raise HTTPException(status_code=503, detail="Seed status unavailable")
+            return self._seed_status_handler()
+
+        @app.get("/api/onboarding/status")
+        async def onboarding_status() -> dict[str, Any]:
+            if self._onboarding_status_handler is None:
+                raise HTTPException(status_code=503, detail="Onboarding status unavailable")
+            return self._onboarding_status_handler()
+
+        @app.get("/api/voice/enrollment/status")
+        async def voice_enrollment_status() -> dict[str, Any]:
+            if self._voice_enrollment_status_handler is None:
+                raise HTTPException(status_code=503, detail="Voice enrollment unavailable")
+            return self._voice_enrollment_status_handler()
+
+        @app.post("/api/voice/enrollment/sample")
+        async def voice_enrollment_sample(payload: dict[str, Any]) -> dict[str, Any]:
+            if self._voice_enrollment_sample_handler is None:
+                raise HTTPException(status_code=503, detail="Voice enrollment unavailable")
+            import base64
+
+            raw = payload.get("audio_base64", "")
+            if not raw:
+                raise HTTPException(status_code=400, detail="audio_base64 required")
+            try:
+                wav_bytes = base64.b64decode(raw)
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail="Invalid audio_base64") from exc
+            duration = payload.get("duration_seconds")
+            result = self._voice_enrollment_sample_handler(
+                wav_bytes,
+                float(duration) if duration is not None else None,
+            )
+            if self._onboarding_notify_handler:
+                self._onboarding_notify_handler()
+            return result
+
+        @app.post("/api/voice/enrollment/train")
+        async def voice_enrollment_train() -> dict[str, Any]:
+            if self._voice_enrollment_train_handler is None:
+                raise HTTPException(status_code=503, detail="Voice enrollment unavailable")
+            result = self._voice_enrollment_train_handler()
+            if asyncio.iscoroutine(result):
+                result = await result
+            if self._onboarding_notify_handler:
+                self._onboarding_notify_handler()
+            return result
+
+        @app.post("/api/voice/enrollment/approve")
+        async def voice_enrollment_approve() -> dict[str, Any]:
+            if self._voice_enrollment_approve_handler is None:
+                raise HTTPException(status_code=503, detail="Voice enrollment unavailable")
+            result = self._voice_enrollment_approve_handler()
+            if asyncio.iscoroutine(result):
+                result = await result
+            if self._onboarding_notify_handler:
+                self._onboarding_notify_handler()
+            return result
+
+        @app.post("/api/voice/enrollment/reject")
+        async def voice_enrollment_reject() -> dict[str, Any]:
+            if self._voice_enrollment_reject_handler is None:
+                raise HTTPException(status_code=503, detail="Voice enrollment unavailable")
+            result = self._voice_enrollment_reject_handler()
+            if asyncio.iscoroutine(result):
+                result = await result
+            if self._onboarding_notify_handler:
+                self._onboarding_notify_handler()
+            return result
+
+        @app.post("/api/voice/enrollment/test-playback")
+        async def voice_enrollment_test() -> dict[str, Any]:
+            if self._voice_enrollment_test_handler is None:
+                raise HTTPException(status_code=503, detail="Voice enrollment unavailable")
+            result = self._voice_enrollment_test_handler()
+            if asyncio.iscoroutine(result):
+                result = await result
+            return result
 
         @app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket) -> None:

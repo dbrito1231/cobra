@@ -197,7 +197,17 @@ export class ChatPanel {
       <div class="seed-stage">${escapeHtml(payload.stage || "")}</div>
       <p>${escapeHtml(payload.reflection || "")}</p>
       <p><em>${escapeHtml(payload.question || "Does that capture what you meant?")}</em></p>
+      <div class="approval-actions">
+        <button class="btn btn-approve" data-action="yes">Yes</button>
+        <button class="btn btn-deny" data-action="no">No</button>
+      </div>
     `;
+    el.querySelector('[data-action="yes"]').addEventListener("click", () => {
+      this.onSend?.("yes");
+    });
+    el.querySelector('[data-action="no"]').addEventListener("click", () => {
+      this.onSend?.("no");
+    });
     this.historyEl.appendChild(el);
     this.scrollToBottom();
   }
@@ -210,7 +220,13 @@ export class ChatPanel {
       <div class="seed-stage">${escapeHtml(payload.stage || "")}</div>
       <p>${escapeHtml(payload.summary || "")}</p>
       <p><em>${escapeHtml(payload.prompt || "Reply approve to save or send edits.")}</em></p>
+      <div class="approval-actions">
+        <button class="btn btn-approve" data-action="approve">Approve</button>
+      </div>
     `;
+    el.querySelector('[data-action="approve"]').addEventListener("click", () => {
+      this.onSend?.("approve");
+    });
     this.historyEl.appendChild(el);
     this.scrollToBottom();
   }

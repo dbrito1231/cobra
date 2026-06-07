@@ -24,6 +24,7 @@ def voice_config(tmp_path: Path) -> VoiceConfig:
         session_end_phrase="That's all for now C.O.B.R.A.",
         voice_model_path=tmp_path / "voice",
         confidence_threshold=0.5,
+        minimum_enrollment_seconds=60.0,
     )
 
 
@@ -121,9 +122,15 @@ class TestVoiceService:
 
 class TestVoiceCloning:
     def test_training_requires_minimum_samples(self, voice_config: VoiceConfig) -> None:
+        from voice.recorder import pcm_to_wav
+
         output = VoiceOutput(voice_config)
         manager = VoiceCloningManager(voice_config, output)
         assert manager.train_local_model() is False
-        manager.session.sample_seconds = 60.0
+        sample_path = voice_config.voice_model_path / "samples" / "sample_0000.wav"
+        sample_path.parent.mkdir(parents=True, exist_ok=True)
+        sample_path.write_bytes(pcm_to_wav(b"\x00\x00" * 8000, sample_rate=16000))
+        manager.session.samples = [str(sample_path)]
+        manager.session.sample_seconds = voice_config.minimum_enrollment_seconds
         assert manager.train_local_model() is True
         assert output.model_status().ready

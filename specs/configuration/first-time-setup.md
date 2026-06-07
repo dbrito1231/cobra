@@ -24,9 +24,9 @@ On first launch, detect missing config (`B` → No) and run wizard:
 | 7 | `W7` | Choose wiki storage location (default: `~/.cobra/wiki/`) |
 | 8 | `W8` | Choose memory/vector DB location (default: `~/.cobra/memory/`) |
 | 9 | `W9` | Validate all settings |
-| 10 | `W10` | Write config file and launch C.O.B.R.A. |
+| 10 | `W10` | Write config file and hand off to onboarding shell |
 
-Flow: `W1` → `W2` → … → `W10` → `VALIDATE` ([startup-validation.md](startup-validation.md)).
+Flow: `W1` → `W2` → … → `W10` → `VALIDATE` ([startup-validation.md](startup-validation.md)) → onboarding shell at voice phase ([specs/onboarding/first-run-sequence.md](../onboarding/first-run-sequence.md)).
 
 Wizard may be **re-run at any time** via a settings command (configuration.md §2).
 
@@ -59,6 +59,7 @@ flowchart TD
 
 - MCP configuration optional at setup.
 - Defaults for storage paths as specified in configuration.md §2 steps 7–8.
+- W10 does **not** launch operational chat directly — it hands off to the first-run onboarding shell (voice → seed → complete).
 
 ## Open Items
 

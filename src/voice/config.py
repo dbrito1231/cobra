@@ -12,6 +12,8 @@ DEFAULT_SESSION_END = "That's all for now C.O.B.R.A."
 DEFAULT_CONFIDENCE_THRESHOLD = 0.5
 DEFAULT_WHISPER_MODEL = "base"
 DEFAULT_SAMPLE_RATE = 16000
+DEFAULT_MINIMUM_ENROLLMENT_SECONDS = 900.0
+DEFAULT_RECOMMENDED_SECONDS = 3600.0
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,8 @@ class VoiceConfig:
     openwakeword_model: str = "hey_jarvis"
     sample_rate: int = DEFAULT_SAMPLE_RATE
     audio_cue_path: Path | None = None
+    minimum_enrollment_seconds: float = DEFAULT_MINIMUM_ENROLLMENT_SECONDS
+    recommended_seconds: float = DEFAULT_RECOMMENDED_SECONDS
 
     @classmethod
     def from_env(cls) -> VoiceConfig:
@@ -49,6 +53,15 @@ class VoiceConfig:
             ),
             sample_rate=int(os.environ.get("COBRA_SAMPLE_RATE", DEFAULT_SAMPLE_RATE)),
             audio_cue_path=Path(cue_path) if cue_path else None,
+            minimum_enrollment_seconds=float(
+                os.environ.get(
+                    "COBRA_MINIMUM_ENROLLMENT_SECONDS",
+                    DEFAULT_MINIMUM_ENROLLMENT_SECONDS,
+                )
+            ),
+            recommended_seconds=float(
+                os.environ.get("COBRA_RECOMMENDED_SECONDS", DEFAULT_RECOMMENDED_SECONDS)
+            ),
         )
 
     @classmethod
@@ -84,6 +97,12 @@ class VoiceConfig:
             ),
             sample_rate=int(voice.get("sample_rate", DEFAULT_SAMPLE_RATE)),
             audio_cue_path=Path(os.path.expanduser(cue_path)) if cue_path else None,
+            minimum_enrollment_seconds=float(
+                voice.get("minimum_enrollment_seconds", DEFAULT_MINIMUM_ENROLLMENT_SECONDS)
+            ),
+            recommended_seconds=float(
+                voice.get("recommended_seconds", DEFAULT_RECOMMENDED_SECONDS)
+            ),
         )
 
     @property

@@ -12,6 +12,7 @@ from brain.memory.wiki import WikiStore
 from brain.model_layer import ModelUnavailableError
 
 if TYPE_CHECKING:
+    from brain.living_document import LivingDocumentManager
     from brain.model_layer import ModelLayer
 
 
@@ -33,6 +34,11 @@ class InterviewPhase(str, Enum):
     REVIEW = "review"
     APPROVED = "approved"
     STORED = "stored"
+
+
+class InterviewKind(str, Enum):
+    SEED = "seed"
+    PE2_REFRESH = "pe2_refresh"
 
 
 STAGE_SECTIONS = {
@@ -63,23 +69,44 @@ STAGE_INTROS = {
 
 STAGE_QUESTIONS = {
     InterviewStage.COMMUNICATION: [
-        "How do you prefer people communicate with you — direct or contextual?",
-        "Do you prefer short messages or detailed explanations?",
+        "How do you naturally write and speak? (formal, casual, direct, verbose)",
+        "How do you open conversations vs. close them?",
+        "Do you prefer short answers or thorough explanations?",
+        "How do you adjust your tone for different audiences?",
+        "What phrases or words do you use often?",
+        "What communication habits do you dislike in others?",
     ],
     InterviewStage.DECISION_MAKING: [
-        "When deciding, do you prioritize speed, thoroughness, or consensus?",
-        "How do you handle tradeoffs between quality and deadlines?",
+        "How do you approach a big decision?",
+        "Do you gather all information first, or decide with what you have?",
+        "How do you handle uncertainty?",
+        "Do you prefer reversible or irreversible decisions and why?",
+        "How do you weigh logic vs. intuition?",
+        "How do you handle being wrong about a decision?",
     ],
     InterviewStage.VALUES: [
-        "What principles guide your decisions most strongly?",
-        "What do you consider non-negotiable in how you work?",
+        "What are your non-negotiables — things you will never compromise on?",
+        "What do you stand for professionally? Personally?",
+        "What do you believe that most people disagree with?",
+        "How do you treat people who are rude to you?",
+        "What makes someone earn your trust?",
+        "What causes you to lose trust in someone?",
     ],
     InterviewStage.HUMOR: [
         "How would you describe your sense of humor?",
-        "Any communication quirks or pet peeves I should know?",
+        "What do you find genuinely funny vs. annoying in humor?",
+        "What are your biggest pet peeves?",
+        "How do you act when you're stressed vs. when you're relaxed?",
+        "How do you handle conflict with people you respect?",
+        "What do people consistently misunderstand about you?",
     ],
     InterviewStage.CONTEXT_BEHAVIOR: [
-        "How does your tone shift between professional and casual settings?",
+        "How does your tone shift between professional, casual, and close relationships?",
+        "How do you like to receive feedback?",
+        "What is your relationship with failure?",
+        "When are you most productive, and what drains your energy?",
+        "What opinions do you hold on topics you frequently discuss?",
+        "What habits and routines define your day?",
     ],
 }
 
@@ -89,6 +116,36 @@ MVP_STAGES = {
     InterviewStage.VALUES,
     InterviewStage.HUMOR,
 }
+
+PE2_QUESTIONS: dict[str, list[str]] = {
+    "Communication Style": [
+        "Has your communication style changed since we last talked?",
+        "Are there situations where you communicate differently now?",
+        "Anything you'd add or correct about how you come across?",
+    ],
+    "Decision-Making": [
+        "Has your approach to decisions shifted recently?",
+        "Are there decisions you're handling differently now?",
+        "What would you update about how you make tradeoffs?",
+    ],
+    "Values and Beliefs": [
+        "Have any of your core values or beliefs evolved?",
+        "Is there something you stand for more strongly now?",
+        "What would you refine about your non-negotiables?",
+    ],
+    "Humor and Personality": [
+        "Has your sense of humor or personality shifted?",
+        "Any new pet peeves or quirks I should know?",
+        "What do people still misunderstand about you?",
+    ],
+    "Context-Specific Behavior": [
+        "Has your tone in different contexts changed?",
+        "How do you handle feedback differently now?",
+        "What habits or energy patterns have shifted?",
+    ],
+}
+
+SECTION_TO_STAGE = {value: key for key, value in STAGE_SECTIONS.items()}
 
 _CONFIRM_YES = frozenset(
     {"yes", "y", "yeah", "yep", "correct", "right", "confirm", "confirmed", "that's right", "sounds good"}
@@ -113,6 +170,16 @@ class InterviewState:
     pending_summary: str = ""
     last_question: str = ""
     correction_note: str = ""
+    optional_interview_active: bool = False
+    session_active: bool = False
+    interview_kind: str = InterviewKind.SEED.value
+    pe2_section: str = ""
+    pe2_refresh_active: bool = False
+    active_questions: list[str] = field(default_factory=list)
+    pe2_last_at: dict[str, str] = field(default_factory=dict)
+    last_pe2_prompt_at: str = ""
+    last_mv3_prompt_at: str = ""
+    overrides: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -135,33 +202,207 @@ class SeedDocumentManager:
         wiki: WikiStore,
         state_file: Path,
         model: ModelLayer | None = None,
+        living_doc: LivingDocumentManager | None = None,
     ) -> None:
         self.wiki = wiki
         self.state_file = state_file
         self.model = model
+        self.living_doc = living_doc
         self.state = self._load_state()
 
+    def set_living_doc(self, living_doc: LivingDocumentManager) -> None:
+        self.living_doc = living_doc
+
     def interview_active(self) -> bool:
-        """True while MVP stages are incomplete or a stage flow is in progress."""
-        if self.mvp_complete():
-            return False
+        """True while an interview session is in progress (seed, optional S5, or PE2)."""
+        if self.state.session_active:
+            return True
+        if self._optional_interview_in_progress():
+            return True
+        if self._pe2_interview_in_progress():
+            return True
         if self.state.phase in {InterviewPhase.REVIEW, InterviewPhase.SUMMARIZING}:
             return True
         if self.state.awaiting_answer or self.state.stage_introduced:
             return True
-        if self.state.completed_stages:
+        if self.state.phase not in {InterviewPhase.ASKING, InterviewPhase.STORED}:
             return True
-        if self.state.phase != InterviewPhase.ASKING:
-            return True
-        return not self.mvp_complete()
+        return False
+
+    def needs_seed_gate(self) -> bool:
+        """First-run hard gate: all stages S1–S5 must be stored."""
+        return not self.profile_complete()
 
     def mvp_complete(self) -> bool:
         completed = {InterviewStage(stage) for stage in self.state.completed_stages}
         return MVP_STAGES.issubset(completed)
 
+    def profile_complete(self) -> bool:
+        completed = {InterviewStage(stage) for stage in self.state.completed_stages}
+        return set(InterviewStage) == completed
+
+    def optional_stages_remaining(self) -> bool:
+        return InterviewStage.CONTEXT_BEHAVIOR.value not in self.state.completed_stages
+
+    def _optional_interview_in_progress(self) -> bool:
+        if not self.optional_stages_remaining():
+            return False
+        if not self.state.optional_interview_active:
+            return False
+        if self.state.current_stage != InterviewStage.CONTEXT_BEHAVIOR:
+            return False
+        if self.state.phase in {InterviewPhase.REVIEW, InterviewPhase.SUMMARIZING}:
+            return True
+        if self.state.awaiting_answer or self.state.stage_introduced:
+            return True
+        if self.state.phase != InterviewPhase.ASKING:
+            return True
+        return self.state.optional_interview_active
+
+    def _pe2_interview_in_progress(self) -> bool:
+        if not self.state.pe2_refresh_active:
+            return False
+        if self.state.phase in {InterviewPhase.REVIEW, InterviewPhase.SUMMARIZING}:
+            return True
+        if self.state.awaiting_answer or self.state.stage_introduced:
+            return True
+        if self.state.phase != InterviewPhase.ASKING:
+            return True
+        return self.state.pe2_refresh_active
+
+    def stalest_pe2_section(self) -> str | None:
+        if not self.mvp_complete():
+            return None
+        sections = list(PE2_QUESTIONS.keys())
+        never = [s for s in sections if s not in self.state.pe2_last_at]
+        if never:
+            return never[0]
+        oldest = min(
+            sections,
+            key=lambda s: self.state.pe2_last_at.get(s, ""),
+        )
+        return oldest
+
+    def should_prompt_pe2(self) -> bool:
+        if not self.profile_complete():
+            return False
+        if self.state.pe2_refresh_active or self.state.session_active:
+            return False
+        if not self.state.last_pe2_prompt_at:
+            return True
+        try:
+            last = datetime.fromisoformat(self.state.last_pe2_prompt_at)
+        except ValueError:
+            return True
+        return (datetime.now(timezone.utc) - last).days >= 7
+
+    def record_pe2_prompt(self) -> None:
+        self.state.last_pe2_prompt_at = datetime.now(timezone.utc).isoformat()
+        self._save_state()
+
+    def begin_optional_interview(self) -> SeedTurnResult:
+        """Start or resume Stage 5 without blocking normal chat when idle."""
+
+        if not self.mvp_complete():
+            return self.begin_interview()
+        if self.profile_complete():
+            return SeedTurnResult(
+                phase=InterviewPhase.STORED,
+                stage=InterviewStage.CONTEXT_BEHAVIOR,
+                interview_complete=True,
+                messages=["Your personality profile is already complete."],
+            )
+        self.state.current_stage = InterviewStage.CONTEXT_BEHAVIOR
+        self.state.optional_interview_active = True
+        self.state.session_active = True
+        self.state.interview_kind = InterviewKind.SEED.value
+        self.state.active_questions = []
+        self.state.phase = InterviewPhase.ASKING
+        self.state.awaiting_answer = False
+        self.state.stage_introduced = False
+        self._save_state()
+        return self._open_stage()
+
+    def begin_pe2_refresh(self, section: str) -> SeedTurnResult:
+        """PE2 — refresh an existing dimension with follow-up questions."""
+
+        if not self.mvp_complete():
+            return SeedTurnResult(
+                messages=["Complete the initial personality interview before a refresh."],
+            )
+        questions = PE2_QUESTIONS.get(section)
+        if not questions:
+            return SeedTurnResult(messages=[f"Unknown dimension: {section}"])
+
+        stage = SECTION_TO_STAGE.get(section)
+        if stage is None:
+            return SeedTurnResult(messages=[f"Unknown dimension: {section}"])
+
+        existing = self.read_section(section)
+        self.state.current_stage = stage
+        self.state.pe2_section = section
+        self.state.pe2_refresh_active = True
+        self.state.session_active = True
+        self.state.interview_kind = InterviewKind.PE2_REFRESH.value
+        self.state.active_questions = list(questions)
+        self.state.question_index = 0
+        self.state.phase = InterviewPhase.ASKING
+        self.state.awaiting_answer = False
+        self.state.stage_introduced = False
+        self.state.answers.pop(section, None)
+        self._save_state()
+        intro = (
+            f"Let's refresh **{section}**. I'll ask a few follow-up questions "
+            f"one at a time.\n\nCurrent profile:\n{existing[:400]}"
+        )
+        return self._open_stage(intro_override=intro)
+
+    def end_optional_interview(self) -> None:
+        self.state.optional_interview_active = False
+        self._end_session()
+
+    def _end_session(self) -> None:
+        self.state.session_active = False
+        self.state.pe2_refresh_active = False
+        self.state.interview_kind = InterviewKind.SEED.value
+        self.state.active_questions = []
+        self.state.pe2_section = ""
+        self.state.phase = InterviewPhase.ASKING
+        self.state.awaiting_answer = False
+        self.state.stage_introduced = False
+        self._save_state()
+
+    def _active_section(self) -> str:
+        if self.state.interview_kind == InterviewKind.PE2_REFRESH.value and self.state.pe2_section:
+            return self.state.pe2_section
+        return STAGE_SECTIONS[self.state.current_stage]
+
+    def record_mv3_prompt(self) -> None:
+        self.state.last_mv3_prompt_at = datetime.now(timezone.utc).isoformat()
+        self._save_state()
+
+    def should_prompt_mv3(self) -> bool:
+        if not self.mvp_complete() or not self.optional_stages_remaining():
+            return False
+        if self.state.optional_interview_active:
+            return False
+        if not self.state.last_mv3_prompt_at:
+            return True
+        try:
+            last = datetime.fromisoformat(self.state.last_mv3_prompt_at)
+        except ValueError:
+            return True
+        return last.date() < datetime.now(timezone.utc).date()
+
     def resume_label(self) -> str:
-        section = STAGE_SECTIONS[self.state.current_stage]
-        return f"{section} — {self.state.phase.value}"
+        section = self._active_section()
+        if self.state.session_active:
+            return f"{section} — {self.state.phase.value}"
+        if not self.mvp_complete():
+            return f"{STAGE_SECTIONS[self.state.current_stage]} — resume"
+        if self.optional_stages_remaining():
+            return "Context-Specific Behavior — optional"
+        return ""
 
     def handle_input(self, text: str) -> SeedTurnResult:
         """Route user text through the interview state machine."""
@@ -184,6 +425,11 @@ class SeedDocumentManager:
     def begin_interview(self) -> SeedTurnResult:
         """I1 — introduce dimension and ask first question without user input."""
 
+        self.state.session_active = True
+        self.state.interview_kind = InterviewKind.SEED.value
+        self.state.active_questions = []
+        self.state.optional_interview_active = False
+        self.state.pe2_refresh_active = False
         self.state.phase = InterviewPhase.ASKING
         self.state.awaiting_answer = False
         return self._open_stage()
@@ -210,10 +456,10 @@ class SeedDocumentManager:
             return self._current_question()
         return None
 
-    def _open_stage(self) -> SeedTurnResult:
+    def _open_stage(self, *, intro_override: str | None = None) -> SeedTurnResult:
         stage = self.state.current_stage
-        section = STAGE_SECTIONS[stage]
-        intro = STAGE_INTROS[stage]
+        section = self._active_section()
+        intro = intro_override or STAGE_INTROS.get(stage, f"Let's explore {section}.")
         question = self._current_question()
         if not question:
             return self._start_summarizing()
@@ -240,7 +486,7 @@ class SeedDocumentManager:
 
     def _handle_answer(self, answer: str) -> SeedTurnResult:
         stage = self.state.current_stage
-        section = STAGE_SECTIONS[stage]
+        section = self._active_section()
         question = self.state.last_question or self._current_question() or ""
 
         self.state.pending_answer = answer
@@ -270,7 +516,7 @@ class SeedDocumentManager:
     def _handle_confirmation(self, text: str) -> SeedTurnResult:
         lowered = text.lower().strip()
         stage = self.state.current_stage
-        section = STAGE_SECTIONS[stage]
+        section = self._active_section()
 
         if lowered in _CONFIRM_YES:
             self.state.correction_note = ""
@@ -337,7 +583,7 @@ class SeedDocumentManager:
 
     def _start_summarizing(self) -> SeedTurnResult:
         stage = self.state.current_stage
-        section = STAGE_SECTIONS[stage]
+        section = self._active_section()
         self.state.phase = InterviewPhase.SUMMARIZING
         summary = self._summarize_stage(section)
         self.state.pending_summary = summary
@@ -364,34 +610,69 @@ class SeedDocumentManager:
 
     def _handle_summary_review(self, text: str) -> SeedTurnResult:
         stage = self.state.current_stage
-        section = STAGE_SECTIONS[stage]
+        section = self._active_section()
         lowered = text.lower().strip()
+        is_pe2 = self.state.interview_kind == InterviewKind.PE2_REFRESH.value
 
         if lowered in _APPROVE:
             self.state.phase = InterviewPhase.APPROVED
-            self._store_stage(section, self.state.pending_summary)
+            history_source = "pe2" if is_pe2 else "seed"
+            self._store_stage(section, self.state.pending_summary, source=history_source)
             self.state.phase = InterviewPhase.STORED
-            self.state.completed_stages.append(stage.value)
-            self._advance_stage()
-            self._save_state()
 
-            if self.mvp_complete():
+            if is_pe2:
+                stamp = datetime.now(timezone.utc).isoformat()
+                self.state.pe2_last_at[section] = stamp
+                self._end_session()
                 return SeedTurnResult(
                     phase=InterviewPhase.STORED,
                     stage=stage,
                     stored=True,
                     interview_complete=True,
                     messages=[
-                        f"Saved **{section}**. Personality interview complete — thank you!"
+                        f"Updated **{section}** from your refresh interview. "
+                        "Continue in your next session if you want to refresh another dimension."
                     ],
                 )
 
-            next_result = self._open_stage()
-            next_result.stored = True
-            next_result.messages.insert(
-                0, f"Saved **{section}**. Moving to the next dimension."
+            if stage.value not in self.state.completed_stages:
+                self.state.completed_stages.append(stage.value)
+            self._advance_stage()
+            self._end_session()
+
+            if self.profile_complete():
+                return SeedTurnResult(
+                    phase=InterviewPhase.STORED,
+                    stage=stage,
+                    stored=True,
+                    interview_complete=True,
+                    messages=[
+                        f"Saved **{section}**. Personality profile complete — thank you!"
+                    ],
+                )
+
+            if self.mvp_complete() and stage == InterviewStage.HUMOR:
+                return SeedTurnResult(
+                    phase=InterviewPhase.STORED,
+                    stage=stage,
+                    stored=True,
+                    interview_complete=True,
+                    messages=[
+                        f"Saved **{section}**. MVP complete — your personality model is now active. "
+                        "You can continue the optional profile interview anytime."
+                    ],
+                )
+
+            return SeedTurnResult(
+                phase=InterviewPhase.STORED,
+                stage=stage,
+                stored=True,
+                interview_complete=True,
+                messages=[
+                    f"Saved **{section}**. Continue the next dimension in your next session — "
+                    "use the banner or say 'continue personality interview'."
+                ],
             )
-            return next_result
 
         self.state.pending_summary = text
         self.state.phase = InterviewPhase.REVIEW
@@ -472,13 +753,16 @@ class SeedDocumentManager:
         return fallback
 
     def _current_question(self) -> str | None:
-        stage = self.state.current_stage
-        questions = STAGE_QUESTIONS.get(stage, [])
+        questions = self.state.active_questions or STAGE_QUESTIONS.get(
+            self.state.current_stage, []
+        )
         if self.state.question_index >= len(questions):
             return None
         return questions[self.state.question_index]
 
-    def _store_stage(self, section: str, summary: str) -> None:
+    def write_section(self, section: str, summary: str) -> None:
+        """Replace a you.md section body (shared by seed store and overrides)."""
+
         content = self.wiki.read("you")
         stamp = datetime.now(timezone.utc).date().isoformat()
         if "*Last updated:" in content:
@@ -497,6 +781,21 @@ class SeedDocumentManager:
         else:
             content += f"\n{replacement}"
         self.wiki.write("you", content)
+
+    def read_section(self, section: str) -> str:
+        content = self.wiki.read("you")
+        marker = f"## {section}"
+        if marker not in content:
+            return ""
+        _, tail = content.split(marker, 1)
+        body = tail.split("\n## ", 1)[0].strip()
+        return body
+
+    def _store_stage(self, section: str, summary: str, *, source: str = "seed") -> None:
+        if self.living_doc is not None:
+            self.living_doc.write_section_with_history(section, summary, source)
+        else:
+            self.write_section(section, summary)
 
     def _advance_stage(self) -> None:
         order = list(InterviewStage)
@@ -552,6 +851,16 @@ class SeedDocumentManager:
                 pending_summary=str(data.get("pending_summary", "")),
                 last_question=str(data.get("last_question", "")),
                 correction_note=str(data.get("correction_note", "")),
+                optional_interview_active=bool(data.get("optional_interview_active", False)),
+                session_active=bool(data.get("session_active", False)),
+                interview_kind=str(data.get("interview_kind", InterviewKind.SEED.value)),
+                pe2_section=str(data.get("pe2_section", "")),
+                pe2_refresh_active=bool(data.get("pe2_refresh_active", False)),
+                active_questions=list(data.get("active_questions", [])),
+                pe2_last_at=dict(data.get("pe2_last_at", {})),
+                last_pe2_prompt_at=str(data.get("last_pe2_prompt_at", "")),
+                last_mv3_prompt_at=str(data.get("last_mv3_prompt_at", "")),
+                overrides=data.get("overrides", {}),
             )
         except (json.JSONDecodeError, ValueError):
             return InterviewState()
@@ -573,5 +882,29 @@ class SeedDocumentManager:
             "pending_summary": self.state.pending_summary,
             "last_question": self.state.last_question,
             "correction_note": self.state.correction_note,
+            "optional_interview_active": self.state.optional_interview_active,
+            "session_active": self.state.session_active,
+            "interview_kind": self.state.interview_kind,
+            "pe2_section": self.state.pe2_section,
+            "pe2_refresh_active": self.state.pe2_refresh_active,
+            "active_questions": self.state.active_questions,
+            "pe2_last_at": self.state.pe2_last_at,
+            "last_pe2_prompt_at": self.state.last_pe2_prompt_at,
+            "last_mv3_prompt_at": self.state.last_mv3_prompt_at,
+            "overrides": self.state.overrides,
         }
         self.state_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    def seed_status(self) -> dict[str, object]:
+        return {
+            "mvp_complete": self.mvp_complete(),
+            "profile_complete": self.profile_complete(),
+            "optional_remaining": self.optional_stages_remaining(),
+            "optional_interview_active": self.state.optional_interview_active,
+            "session_active": self.state.session_active,
+            "needs_seed_gate": self.needs_seed_gate(),
+            "pe2_refresh_active": self.state.pe2_refresh_active,
+            "current_stage": self.state.current_stage.value,
+            "phase": self.state.phase.value,
+            "resume_label": self.resume_label(),
+        }

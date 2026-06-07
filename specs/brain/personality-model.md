@@ -19,7 +19,7 @@ Captures and applies the user's voice across all contexts via the wiki You page.
 ### Data Collection (`PE1`–`PE3`)
 
 1. **`PE1` Seed document** — communication style, values, decision patterns, humor, hard preferences; created collaboratively with Claude before first use.
-2. **`PE2` Structured interviews** — ongoing questions on tone, beliefs, pet peeves, behavior across contexts.
+2. **`PE2` Structured interviews** — ongoing follow-up refresh interviews per dimension after initial seed profile (`Refresh <section>` command or proactive prompt; 3 questions per session; one dimension per session).
 3. **`PE3` Behavioral logging** — every interaction is training data; You page improves as patterns are observed.
 
 All three feed **`PE4` You Wiki Page** (all contexts, evolving).
@@ -71,7 +71,7 @@ flowchart TD
 
 ## Open Items
 
-- [ ] Seed document — to be created collaboratively (structured interview with Claude) (brain.md §11)
+_None — PE1 seed interview and PE2 refresh interviews implemented._
 
 ## Cross-References
 

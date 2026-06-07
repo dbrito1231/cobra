@@ -85,6 +85,48 @@
     </div>
   </div>
 
+  <div id="onboarding-overlay" class="onboarding-overlay" hidden>
+    <div class="onboarding-dialog">
+      <nav id="onboarding-steps" class="onboarding-steps" aria-label="Onboarding progress">
+        <span data-step="config" class="onboarding-step">Config</span>
+        <span data-step="voice" class="onboarding-step">Voice</span>
+        <span data-step="seed" class="onboarding-step">Personality</span>
+        <span data-step="complete" class="onboarding-step">Ready</span>
+      </nav>
+
+      <section id="onboarding-voice-panel" class="onboarding-panel" hidden>
+        <h2>Voice enrollment</h2>
+        <p>Record guided prompts so C.O.B.R.A. can speak with your cloned voice.</p>
+        <p id="voice-enrollment-prompt" class="voice-enrollment-prompt"></p>
+        <div class="voice-enrollment-progress">
+          <progress id="voice-enrollment-progress" max="900" value="0"></progress>
+          <span id="voice-enrollment-progress-label">0 / 15 min minimum</span>
+        </div>
+        <div class="onboarding-actions">
+          <button id="voice-record-start" class="btn btn-primary" type="button">Start recording</button>
+          <button id="voice-record-stop" class="btn btn-ghost" type="button" hidden>Stop &amp; save</button>
+          <button id="voice-train" class="btn btn-accent" type="button" disabled>Train model</button>
+          <button id="voice-test-playback" class="btn btn-ghost" type="button" disabled>Test playback</button>
+          <button id="voice-approve" class="btn btn-primary" type="button" disabled>Approve voice</button>
+          <button id="voice-reject" class="btn btn-ghost" type="button" disabled>Record more</button>
+        </div>
+        <p id="voice-enrollment-status" class="onboarding-status"></p>
+      </section>
+
+      <section id="onboarding-seed-panel" class="onboarding-panel" hidden>
+        <h2>Personality interview</h2>
+        <p>Complete the seed interview in chat — one dimension per session.</p>
+        <button id="onboarding-start-seed" class="btn btn-primary" type="button">Start personality interview</button>
+      </section>
+
+      <section id="onboarding-complete-panel" class="onboarding-panel" hidden>
+        <h2>C.O.B.R.A. is ready</h2>
+        <p>Voice and personality onboarding are complete.</p>
+        <button id="onboarding-finish" class="btn btn-primary" type="button">Begin</button>
+      </section>
+    </div>
+  </div>
+
   <div id="lock-overlay" class="lock-overlay" hidden>
     <div class="lock-dialog">
       <h2>C.O.B.R.A. Locked</h2>
@@ -100,6 +142,7 @@
   <div id="seed-banner" class="seed-banner" hidden>
     <span id="seed-banner-message">Complete the personality interview so C.O.B.R.A. can mirror your voice.</span>
     <span id="seed-banner-resume" class="seed-banner-resume"></span>
+    <button id="seed-banner-action" class="btn btn-accent" type="button" hidden>Start interview</button>
   </div>
 
   <div id="search-overlay" class="search-overlay" hidden>

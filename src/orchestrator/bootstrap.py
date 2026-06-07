@@ -30,6 +30,7 @@ from mcp.service import McpService
 from orchestrator.approval_wait import ApprovalWaitRegistry
 from orchestrator.failure_wait import FailureWaitRegistry
 from orchestrator.models import BusEvent, ComponentName, FailureAction, HealthState
+from orchestrator.onboarding import OnboardingManager
 from orchestrator.orchestrator import Orchestrator
 from orchestrator.startup import StartupHooks
 from orchestrator.ui_bridge import schedule_ui
@@ -57,6 +58,13 @@ def build_default_orchestrator(
         config_service.reader.replace(config_service.config)
 
     legacy = config_service.to_legacy_dict() if config_service.config else {}
+    cobra_dir = Path.home() / ".cobra"
+    storage = legacy.get("storage", {})
+    if storage.get("memory_dir"):
+        cobra_dir = Path(storage["memory_dir"]).parent
+    elif storage.get("wiki_dir"):
+        cobra_dir = Path(storage["wiki_dir"]).parent
+    onboarding = OnboardingManager(cobra_dir / "onboarding_state.json")
 
     chat_ui_holder: dict[str, ChatUIServer] = {}
     approval_waits = ApprovalWaitRegistry()
@@ -153,6 +161,7 @@ def build_default_orchestrator(
         audit_outbound=security.audit_outbound,
         approval_prompt=brain_approval_prompt,
         offline=os.environ.get("COBRA_BRAIN_OFFLINE", "0") == "1",
+        onboarding=onboarding,
     )
 
     voice = VoiceService(
@@ -266,6 +275,61 @@ def build_default_orchestrator(
     chat_ui.set_proactive_handler(on_proactive_surfaced)
     chat_ui.set_failure_handler(failure_handler)
 
+    def push_onboarding_state() -> None:
+        onboarding.sync(
+            voice=voice,
+            brain=brain,
+            needs_wizard=config_service.needs_wizard,
+        )
+        payload = brain.onboarding_payload()
+        schedule_ui(
+            chat_ui,
+            lambda: chat_ui.push_onboarding_step(payload),
+        )
+
+    async def voice_enrollment_approve() -> dict[str, Any]:
+        voice.cloning.approve_clone()
+        onboarding.mark_voice_complete()
+        push_onboarding_state()
+        auto_events = await brain._maybe_auto_start_seed()  # noqa: SLF001
+        if auto_events:
+            for ws_event in auto_events:
+                await chat_ui.push_event(ws_event)
+        return {"status": "ok", **voice.enrollment_status()}
+
+    def voice_enrollment_reject() -> dict[str, Any]:
+        voice.cloning.reject_clone()
+        push_onboarding_state()
+        return {"status": "ok", **voice.enrollment_status()}
+
+    def voice_enrollment_train() -> dict[str, Any]:
+        trained = voice.cloning.train_local_model()
+        push_onboarding_state()
+        return {"status": "ok" if trained else "failed", **voice.enrollment_status()}
+
+    def voice_enrollment_test() -> dict[str, Any]:
+        import base64
+
+        audio = voice.cloning.synthesize_test_phrase() or b""
+        return {
+            "status": "ok",
+            "audio_base64": base64.b64encode(audio).decode(),
+            **voice.enrollment_status(),
+        }
+
+    chat_ui.set_voice_enrollment_handlers(
+        status=voice.enrollment_status,
+        sample=lambda wav, duration=None: voice.cloning.record_sample_bytes(wav, duration),
+        train=voice_enrollment_train,
+        approve=voice_enrollment_approve,
+        reject=voice_enrollment_reject,
+        test_playback=voice_enrollment_test,
+    )
+    chat_ui.set_onboarding_handlers(
+        status=brain.onboarding_payload,
+        notify=push_onboarding_state,
+    )
+
     async def voice_deliver(text: str, mood_ctx: dict[str, Any]) -> None:
         from voice.models import MoodResult, MoodLevel
 
@@ -328,6 +392,7 @@ def build_default_orchestrator(
 
     async def wizard_complete(payload: dict[str, Any]) -> dict[str, Any]:
         from config.wizard import WizardInput
+        from chat_ui.models import WebSocketEvent
 
         data = WizardInput(
             model_endpoint=payload.get("model_endpoint", "http://127.0.0.1:1234"),
@@ -345,12 +410,15 @@ def build_default_orchestrator(
         if not report.passed:
             failures = "; ".join(item.message for item in report.failures())
             return {"status": "failed", "message": failures}
+        push_onboarding_state()
         return {"status": "ok"}
 
     chat_ui.set_wizard_handler(wizard_complete)
     chat_ui.set_wizard_status_handler(
         lambda: {"needs_wizard": config_service.needs_wizard},
     )
+    chat_ui.set_seed_export_handler(brain.seed_export)
+    chat_ui.set_seed_status_handler(brain.seed.seed_status)
 
     def initialize_mcp() -> None:
         servers = config_service.reader.mcp_servers()
@@ -359,6 +427,8 @@ def build_default_orchestrator(
 
     def wait_lm_studio() -> bool:
         if os.environ.get("COBRA_SKIP_LM_STUDIO", "0") == "1":
+            return True
+        if config_service.needs_wizard:
             return True
         if config_service.config is None:
             return False
@@ -386,12 +456,22 @@ def build_default_orchestrator(
 
     chat_ui.set_lm_studio_cancel_handler(lm_studio_cancel)
 
+    def initialize_brain() -> None:
+        brain.initialize()
+        push_onboarding_state()
+        schedule_ui(
+            chat_ui,
+            lambda: chat_ui.push_event(
+                WebSocketEvent.seed_mode(brain._seed_mode_payload())  # noqa: SLF001
+            ),
+        )
+
     hooks = StartupHooks(
         load_configuration=load_configuration,
         initialize_security=security.initialize,
         initialize_mcp=initialize_mcp,
         wait_lm_studio=wait_lm_studio,
-        initialize_brain=brain.initialize,
+        initialize_brain=initialize_brain,
         initialize_tools=tools.initialize,
         initialize_voice=voice.initialize,
         initialize_chat_ui=lambda: chat_ui.start(),

@@ -54,10 +54,11 @@ flowchart TD
 
 - Resume must not skip unapproved summaries.
 - MVP gate after stage storage ([minimum-viable-seed.md](minimum-viable-seed.md)).
+- **MV3 frequency:** At most once per calendar day when Stage 5+ remains incomplete.
 
 ## Open Items
 
-- [ ] Define how often C.O.B.R.A. prompts the user to complete remaining stages
+_None — MV3 frequency documented in [minimum-viable-seed.md](minimum-viable-seed.md)._
 
 ## Cross-References
 

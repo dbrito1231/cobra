@@ -43,12 +43,15 @@ flowchart TD
 ## Rules and Constraints
 
 - Stages 1–4 map to [priority-dimensions.md](priority-dimensions.md).
-- Stage 5+ optional for full profile but MVP focuses on `S1`–`S4`.
+- Stage 5 required for first-run hard gate (full profile before operational use).
+- **MVP minimum:** Stages 1–4 (`S1`–`S4`) activate the personality model (`MV2`).
+- **First-run hard gate:** Stages 1–5 (`S1`–`S5`) must all be stored before C.O.B.R.A. is fully operational ([specs/onboarding/first-run-sequence.md](../onboarding/first-run-sequence.md)).
+- **Pre-MVP gate:** First launch requires the seed interview after voice enrollment; one dimension per session ([interview-approach.md](interview-approach.md)).
+- **Post-gate MV3:** After operational, optional refresh prompts for incomplete dimensions via PE2.
 
 ## Open Items
 
-- [ ] Define minimum viable seed document — what is the minimum number of stages before C.O.B.R.A. is ready to use
-- [ ] Define how often C.O.B.R.A. prompts the user to complete remaining stages
+_None — resolved in implementation._
 
 ## Cross-References
 

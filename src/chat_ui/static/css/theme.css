@@ -706,3 +706,77 @@ html, body {
   color: var(--text-primary);
   border-radius: var(--radius);
 }
+
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 26, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2050;
+}
+
+.onboarding-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: min(640px, 92vw);
+}
+
+.onboarding-steps {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.onboarding-step {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.onboarding-step.active {
+  color: var(--text-primary);
+  border: 1px solid var(--accent-blue);
+}
+
+.onboarding-step.done {
+  color: var(--accent-green, #6fcf97);
+}
+
+.onboarding-panel h2 {
+  margin-top: 0;
+}
+
+.voice-enrollment-prompt {
+  padding: 12px;
+  background: var(--bg-primary);
+  border-radius: var(--radius);
+  min-height: 3rem;
+}
+
+.voice-enrollment-progress {
+  margin: 16px 0;
+}
+
+.voice-enrollment-progress progress {
+  width: 100%;
+}
+
+.onboarding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.onboarding-status {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}

@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 from brain.memory.vector import VectorIndex
 from brain.memory.wiki import WikiStore
 from brain.model_layer import ModelLayer
+
+if TYPE_CHECKING:
+    from brain.living_document import LivingDocumentManager
 
 
 class WikiOperations:
@@ -15,10 +19,18 @@ class WikiOperations:
 
     NON_FINDING_TTL_DAYS = 30
 
-    def __init__(self, wiki: WikiStore, vector: VectorIndex, model: ModelLayer) -> None:
+    def __init__(
+        self,
+        wiki: WikiStore,
+        vector: VectorIndex,
+        model: ModelLayer,
+        *,
+        living_doc: LivingDocumentManager | None = None,
+    ) -> None:
         self.wiki = wiki
         self.vector = vector
         self.model = model
+        self.living_doc = living_doc
 
     def ingest_session(self, meta_summary: str) -> list[str]:
         """WO1 — update wiki pages from session meta-summary."""
@@ -42,6 +54,10 @@ class WikiOperations:
             self.wiki.append("preferences", pref_entry)
             touched.append("preferences.md")
             self.vector.upsert("preferences.md", self.wiki.read("preferences"))
+
+        if self.living_doc is not None:
+            living_touched = self.living_doc.update_from_session(meta_summary)
+            touched.extend(f"you.md:{section}" for section in living_touched)
 
         self.wiki.update_index()
         self.wiki.append_log("ingest", f"Updated {', '.join(touched)}")

@@ -15,7 +15,10 @@ from voice.tts import COQUI_TTS_AVAILABLE, TTSSynthesizer
 
 @pytest.fixture
 def voice_config(tmp_path: Path) -> VoiceConfig:
-    return VoiceConfig(voice_model_path=tmp_path / "voice")
+    return VoiceConfig(
+        voice_model_path=tmp_path / "voice",
+        minimum_enrollment_seconds=60.0,
+    )
 
 
 @pytest.mark.asyncio
@@ -52,11 +55,16 @@ class TestTTSSynthesizer:
 
 
 class TestVoiceCloning:
-    def test_stub_training_marks_model_ready(self, voice_config: VoiceConfig) -> None:
+    def test_stub_training_marks_model_ready(self, voice_config: VoiceConfig, tmp_path: Path) -> None:
+        from voice.recorder import pcm_to_wav
+
         output = VoiceOutput(voice_config)
         manager = VoiceCloningManager(voice_config, output)
+        sample = tmp_path / "sample.wav"
+        sample.write_bytes(pcm_to_wav(b"\x00\x00" * 8000, sample_rate=16000))
+        manager.session.samples = [str(sample)]
         assert manager.train_local_model() is False
-        manager.session.sample_seconds = 60.0
+        manager.session.sample_seconds = voice_config.minimum_enrollment_seconds
         assert manager.train_local_model() is True
         assert output.model_status().ready
 
@@ -68,7 +76,7 @@ class TestVoiceCloning:
         synthesizer.train_from_samples.return_value = True
         output = VoiceOutput(voice_config, synthesizer=synthesizer)
         manager = VoiceCloningManager(voice_config, output, synthesizer=synthesizer)
-        manager.session.samples = [sample]
-        manager.session.sample_seconds = 60.0
+        manager.session.samples = [str(sample)]
+        manager.session.sample_seconds = voice_config.minimum_enrollment_seconds
         assert manager.train_local_model() is True
         synthesizer.train_from_samples.assert_called_once()

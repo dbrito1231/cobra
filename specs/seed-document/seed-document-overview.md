@@ -68,10 +68,10 @@ flowchart TD
 
 ## Open Items (from seed-document.md)
 
-- [ ] Define the exact question set for each stage (to be done collaboratively with Claude)
-- [ ] Define minimum viable seed document — what is the minimum number of stages before C.O.B.R.A. is ready to use
-- [ ] Define how often C.O.B.R.A. prompts the user to complete remaining stages
-- [ ] Define whether the seed document can be exported for backup
+- [x] Define the exact question set for each stage — implemented verbatim from priority/additional dimension specs
+- [x] Define minimum viable seed document — MVP = stages 1–4
+- [x] Define how often C.O.B.R.A. prompts the user to complete remaining stages — once per calendar day (MV3)
+- [x] Define whether the seed document can be exported for backup — `GET /api/seed/export`
 
 Tracked in owner specs and [implementation-plan.md](implementation-plan.md).
 

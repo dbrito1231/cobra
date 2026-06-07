@@ -2,17 +2,29 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from brain.memory.wiki import WikiStore
 from brain.model_layer import ModelLayer
 from brain.models import SharedContext
+
+if TYPE_CHECKING:
+    from brain.living_document import LivingDocumentManager
 
 
 class PersonalityMirror:
     """Applies You-page voice at pipeline step P5."""
 
-    def __init__(self, wiki: WikiStore, model: ModelLayer) -> None:
+    def __init__(
+        self,
+        wiki: WikiStore,
+        model: ModelLayer,
+        *,
+        living_doc: LivingDocumentManager | None = None,
+    ) -> None:
         self.wiki = wiki
         self.model = model
+        self.living_doc = living_doc
 
     def apply(self, draft: str, context: SharedContext) -> str:
         you_page = self.wiki.read("you")
@@ -29,15 +41,10 @@ class PersonalityMirror:
         return completion.text.strip() or draft
 
     def log_behavior(self, user_text: str, response: str) -> None:
-        stamp = self.wiki.read("you").count("## Observed Patterns")
-        if stamp == 0:
+        if self.living_doc is None:
             return
-        snippet = f"- User asked about: {user_text[:80]}; responded concisely."
-        content = self.wiki.read("you")
-        if "## Observed Patterns" in content:
-            parts = content.split("## Observed Patterns", 1)
-            updated = parts[0] + "## Observed Patterns\n" + snippet + "\n" + parts[1].lstrip()
-            self.wiki.write("you", updated)
+        summary = f"User said: {user_text[:120]}. C.O.B.R.A. responded: {response[:120]}."
+        self.living_doc.update_from_session(summary)
 
     def is_personality_ready(self) -> bool:
         you = self.wiki.read("you")

@@ -43,7 +43,7 @@ flowchart TD
 
 ## Open Items
 
-- [ ] Define the exact question set for each stage (to be done collaboratively with Claude)
+_None — S5 question set defined in implementation._
 
 ## Cross-References
 

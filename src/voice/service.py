@@ -121,6 +121,12 @@ class VoiceService:
             return None
         return await self._handle_transcript(result.text, result.confidence, result.mood)
 
+    def enrollment_complete(self) -> bool:
+        return self.cloning.is_enrollment_complete()
+
+    def enrollment_status(self) -> dict:
+        return self.cloning.enrollment_status()
+
     async def deliver_response(self, text: str, mood_context: dict | None = None) -> None:
         from voice.models import MoodLevel, MoodResult
 
@@ -136,6 +142,13 @@ class VoiceService:
         self.lifecycle.on_user_speech()
         self.interruption.begin_response()
         self._emit_state(SessionState.RESPONDING)
+        if not self.enrollment_complete():
+            if self.config.output_mode in {"both", "text"}:
+                await self.output.deliver(text, mood)
+            self.interruption.end_response()
+            self.lifecycle.on_response_complete()
+            self._emit_state(SessionState.ACTIVE)
+            return
         await self.output.deliver(text, mood)
         self.interruption.end_response()
         self.lifecycle.on_response_complete()

@@ -38,6 +38,7 @@ flowchart TD
 ## Rules and Constraints
 
 - One dimension focus per session aligns with [interview-stages.md](interview-stages.md).
+- **Enforced:** After each `I12` store, the interview session ends; the user resumes the next dimension via banner or `continue personality interview`.
 - Per-exchange rules in [interview-session-flow.md](interview-session-flow.md).
 
 ## Open Items

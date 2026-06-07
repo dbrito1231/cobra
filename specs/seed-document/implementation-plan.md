@@ -6,12 +6,13 @@ Phased build order for the C.O.B.R.A. Seed Document component. Each phase maps t
 
 ## Blocking Decisions (seed-document.md Open Items)
 
-| Open item | Blocks | Owner spec |
-|-----------|--------|------------|
-| Exact question set per stage | Phase 3 content | [priority-dimensions.md](priority-dimensions.md), [additional-dimensions.md](additional-dimensions.md) |
-| Minimum viable stage count | Phase 5 MVP | [minimum-viable-seed.md](minimum-viable-seed.md) |
-| Prompt frequency for remaining stages | Phase 5 MVP | [minimum-viable-seed.md](minimum-viable-seed.md), [interview-stages.md](interview-stages.md) |
-| Export for backup | Phase 1 schema | [output-format.md](output-format.md) |
+| Open item | Status |
+|-----------|--------|
+| Exact question set per stage | **Closed** — verbatim from priority/additional dimension specs |
+| Minimum viable stage count | **Closed** — MVP = stages 1–4 |
+| Prompt frequency for remaining stages | **Closed** — once per calendar day (MV3) |
+| Export for backup | **Closed** — `GET /api/seed/export` |
+| PE2 ongoing interviews | **Closed** — refresh interviews per dimension |
 
 ---
 
@@ -84,7 +85,7 @@ Phased build order for the C.O.B.R.A. Seed Document component. Each phase maps t
 
 **Exit criteria:** C.O.B.R.A. usable after MVP; prompts for incomplete stages.
 
-**Blocked by:** MVP stage count; prompt frequency.
+**Status:** Complete (2026-06-06 PASS review).
 
 ---
 

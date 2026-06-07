@@ -13,7 +13,8 @@ One-time guided recording, local training, and cloned voice model storage.
 
 ### Setup (§3.1)
 
-- Requires **1 hour or more** of recorded voice samples from the user.
+- **Minimum enrollment (hard gate):** **15–20 minutes** of guided recordings — enough for a usable XTTS clone to pass first-run onboarding.
+- **Recommended quality target:** **1 hour or more** of recorded voice samples (multi-session OK).
 - Samples are recorded locally via a **guided recording session**.
 - A local TTS model (**Coqui TTS / XTTS or equivalent**) trains on the samples locally (`CL3`).
 - Voice samples and the trained model are stored **locally only** — never uploaded or sent externally (`CL2`).
@@ -22,7 +23,7 @@ One-time guided recording, local training, and cloned voice model storage.
 ### Recording session (§7)
 
 1. C.O.B.R.A. presents prompts for the user to read aloud (varied sentences, tone, pacing) (`CL1`)
-2. User records at least **1 hour** of samples across multiple sessions if preferred
+2. User records at least **15–20 minutes** to pass the first-run gate; **1 hour+** recommended for best quality (multi-session OK)
 3. Samples are processed locally to train the cloned voice model (`CL3`)
 4. C.O.B.R.A. plays back a test response using the cloned voice for user approval (`CL4`)
 5. If clone quality is unsatisfactory, additional recording sessions can improve it (`CL5` → No → `CL7` → `CL1`)
@@ -44,7 +45,7 @@ Mermaid `CLONE` flow:
 
 ```mermaid
 flowchart TD
-    CL1[Guided recording - 1hr+ samples] --> CL2[Store locally cobra/voice/]
+    CL1[Guided recording - 15min gate / 1hr recommended] --> CL2[Store locally cobra/voice/]
     CL2 --> CL3[Train local TTS - XTTS]
     CL3 --> CL4[Playback test]
     CL4 --> CL5{Quality acceptable?}
@@ -52,10 +53,20 @@ flowchart TD
     CL5 -->|No| CL7[Additional samples] --> CL1
 ```
 
+## Duration Tiers
+
+| Tier | Seconds | Purpose |
+|------|---------|---------|
+| `minimum_enrollment_seconds` | 900 (15 min) | First-run hard gate — training may proceed |
+| `recommended_seconds` | 3600 (1 hr) | Best clone fidelity; encouraged post-gate |
+
+Configuration keys live under `voice:` in config YAML ([configuration.md](configuration.md)).
+
 ## Rules and Constraints
 
 - No cloud training or upload ([privacy.md](privacy.md)).
-- Missing/corrupt model on startup behavior is undefined (open item).
+- First-run voice enrollment runs **before** the seed personality interview ([specs/onboarding/first-run-sequence.md](../onboarding/first-run-sequence.md)).
+- Missing/corrupt model on startup blocks normal TTS until re-enrollment or restore.
 
 ## Open Items
 

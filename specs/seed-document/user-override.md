@@ -44,7 +44,8 @@ flowchart TD
 
 ## Rules and Constraints
 
-- Wiki browser is read-only in UI for direct edit — override mechanism TBD at implementation (may use chat command or external edit with ingest).
+- Wiki browser is read-only in UI for direct edit — override via chat command.
+- **Override syntax:** `Override <section>: <content>` (e.g. `Override Communication Style: Always be brief.`).
 - Documented behavior: user correction is always authoritative.
 
 ## Open Items

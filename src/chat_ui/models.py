@@ -155,6 +155,21 @@ class SeedModePayload:
     stage: str = ""
     phase: str = ""
     resume_label: str = ""
+    mvp_complete: bool = False
+    optional_remaining: bool = False
+    profile_complete: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class OnboardingStepPayload:
+    phase: str
+    voice_complete: bool = False
+    personality_complete: bool = False
+    operational: bool = False
+    blocked_reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -342,6 +357,14 @@ class WebSocketEvent:
     @classmethod
     def seed_mode(cls, payload: SeedModePayload) -> "WebSocketEvent":
         return cls(type="seed_mode", payload=payload.to_dict())
+
+    @classmethod
+    def onboarding_step(cls, payload: OnboardingStepPayload) -> "WebSocketEvent":
+        return cls(type="onboarding_step", payload=payload.to_dict())
+
+    @classmethod
+    def onboarding_step_from_dict(cls, payload: dict[str, Any]) -> "WebSocketEvent":
+        return cls(type="onboarding_step", payload=payload)
 
     @classmethod
     def config_notify(cls, message: str) -> "WebSocketEvent":

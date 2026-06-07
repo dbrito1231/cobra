@@ -72,7 +72,7 @@ flowchart TD
 
 ## Open Items
 
-- [ ] Define the exact question set for each stage (to be done collaboratively with Claude)
+_None — question sets defined in implementation (verbatim from this spec)._
 
 ## Cross-References
 

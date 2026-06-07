@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Union
 
 if TYPE_CHECKING:
+    from orchestrator.onboarding import OnboardingManager
     from tools.service import ToolsService
 from uuid import uuid4
 
 from chat_ui.models import (
     ApprovalRequestPayload,
     ChatMessage,
+    OnboardingStepPayload,
     PipelineStep,
     ProactiveItem,
     SeedConfirmPayload,
@@ -42,12 +45,22 @@ from brain.privacy import PrivacyGate, full_reset
 from brain.proactivity import ProactivityEngine
 from brain.reasoning import ReasoningEngine
 from brain.router import Router
+from brain.living_document import LivingDocumentManager
 from brain.seed_document import InterviewPhase, SeedDocumentManager
 from brain.summarizer import SessionSummarizer
 from brain.verification import VerificationPipeline
 from brain.wiki_ops import WikiOperations
 
 VoiceDeliver = Callable[[str, dict[str, Any]], Union[Awaitable[None], None]]
+
+SEED_INTERVIEW_TRIGGERS = frozenset(
+    {
+        "start personality interview",
+        "continue personality interview",
+    }
+)
+_OVERRIDE_PATTERN = re.compile(r"^override\s+(.+?):\s*(.+)$", re.IGNORECASE | re.DOTALL)
+_REFRESH_PATTERN = re.compile(r"^refresh\s+(.+)$", re.IGNORECASE)
 
 
 class BrainService:
@@ -63,6 +76,7 @@ class BrainService:
         approval_prompt: Callable[..., Union[Awaitable[bool], bool]] | None = None,
         on_voice_deliver: VoiceDeliver | None = None,
         offline: bool | None = None,
+        onboarding: OnboardingManager | None = None,
     ) -> None:
         legacy = self._reader_to_legacy(config_reader)
         self.config = BrainConfig.from_config_dict(legacy)
@@ -74,10 +88,30 @@ class BrainService:
         self.raw_logs = RawLogStore(paths["memory_dir"])
         self.vector = VectorIndex(paths["memory_dir"] / "vector")
         self.model = ModelLayer(self.config)
+        self.seed = SeedDocumentManager(
+            self.wiki,
+            paths["memory_dir"] / "seed_state.json",
+            model=self.model,
+        )
+        self.living_doc = LivingDocumentManager(
+            self.seed,
+            self.model,
+            paths["wiki_dir"],
+        )
+        self.seed.set_living_doc(self.living_doc)
         self.privacy = PrivacyGate(approval_prompt=approval_prompt)
-        self.wiki_ops = WikiOperations(self.wiki, self.vector, self.model)
+        self.wiki_ops = WikiOperations(
+            self.wiki,
+            self.vector,
+            self.model,
+            living_doc=self.living_doc,
+        )
         self.retriever = MemoryRetriever(self.wiki, self.vector)
-        self.personality = PersonalityMirror(self.wiki, self.model)
+        self.personality = PersonalityMirror(
+            self.wiki,
+            self.model,
+            living_doc=self.living_doc,
+        )
         self.reasoning = ReasoningEngine(self.model)
         self.router = Router(
             self.model,
@@ -91,11 +125,6 @@ class BrainService:
             self.raw_logs,
             self.model,
             paths["memory_dir"] / "summaries",
-        )
-        self.seed = SeedDocumentManager(
-            self.wiki,
-            paths["memory_dir"] / "seed_state.json",
-            model=self.model,
         )
         self._mcp_service = mcp_service
         self._tools_service = tools_service
@@ -115,6 +144,7 @@ class BrainService:
             approval_events=self._handle_tool_approval,
         )
         self._on_voice_deliver = on_voice_deliver
+        self._onboarding = onboarding
         self._initialized = False
         self._response_in_progress = False
         self._pending_events: list[WebSocketEvent] = []
@@ -161,6 +191,21 @@ class BrainService:
             msg = ChatMessage(sender="cobra", content=normalized.confirmation_prompt)
             return [WebSocketEvent.message(msg)]
 
+        override = self._parse_override(normalized.text)
+        if override is not None:
+            return self._handle_override(*override)
+
+        pe2_section = self._parse_pe2_refresh(normalized.text)
+        if pe2_section is not None:
+            return await self._start_pe2_refresh(pe2_section, normalized.text.strip())
+
+        if normalized.text.strip().lower() in SEED_INTERVIEW_TRIGGERS:
+            return await self._start_seed_interview(normalized.text.strip())
+
+        blocked = self.onboarding_blocked_reason()
+        if blocked and not self.seed_mode_active:
+            return await self._onboarding_blocked_events(blocked)
+
         if self.seed_mode_active:
             return await self._process_seed_input(normalized.text)
 
@@ -174,6 +219,17 @@ class BrainService:
         if normalized.needs_confirmation:
             msg = ChatMessage(sender="cobra", content=normalized.confirmation_prompt)
             return [WebSocketEvent.message(msg)]
+        override = self._parse_override(normalized.text)
+        if override is not None:
+            return self._handle_override(*override)
+        pe2_section = self._parse_pe2_refresh(normalized.text)
+        if pe2_section is not None:
+            return await self._start_pe2_refresh(pe2_section, normalized.text.strip())
+        if normalized.text.strip().lower() in SEED_INTERVIEW_TRIGGERS:
+            return await self._start_seed_interview(normalized.text.strip())
+        blocked = self.onboarding_blocked_reason()
+        if blocked and not self.seed_mode_active:
+            return await self._onboarding_blocked_events(blocked)
         if self.seed_mode_active:
             return await self._process_seed_input(normalized.text)
         try:
@@ -231,6 +287,42 @@ class BrainService:
                     )
                 )
 
+            if self.seed.should_prompt_mv3():
+                self.proactivity.enqueue_seed_completion()
+                self.seed.record_mv3_prompt()
+                mv3 = self.proactivity.top_item
+                if mv3:
+                    events.append(
+                        WebSocketEvent.proactive_queue(
+                            self.proactivity.queue_count,
+                            ProactiveItem(
+                                id=mv3.id,
+                                preview=mv3.preview,
+                                priority=mv3.priority,
+                            ),
+                        )
+                    )
+
+            if self.seed.profile_complete() and self.seed.should_prompt_pe2():
+                section = self.seed.stalest_pe2_section()
+                if section:
+                    self.proactivity.enqueue_pe2_refresh(section)
+                    self.seed.record_pe2_prompt()
+                    pe2 = self.proactivity.top_item
+                    if pe2:
+                        events.append(
+                            WebSocketEvent.proactive_queue(
+                                self.proactivity.queue_count,
+                                ProactiveItem(
+                                    id=pe2.id,
+                                    preview=pe2.preview,
+                                    priority=pe2.priority,
+                                ),
+                            )
+                        )
+
+            events.append(WebSocketEvent.seed_mode(self._seed_mode_payload()))
+
             if self._on_voice_deliver and source == "voice":
                 mood_ctx = mood.to_context() if mood else {}
                 deliver = self._on_voice_deliver(final_text, mood_ctx)
@@ -248,7 +340,6 @@ class BrainService:
         summary = self.summarizer.summarize_session()
         if summary and summary.meta_summary:
             self.wiki_ops.ingest_session(summary.meta_summary)
-            self.personality.log_behavior("session", summary.meta_summary)
         self.proactivity.clear_session_buffer()
         self.context_builder.reset_session()
         self.raw_logs.new_session()
@@ -270,12 +361,86 @@ class BrainService:
 
     @property
     def seed_mode_active(self) -> bool:
-        if self.personality_ready():
-            return self.seed.interview_active()
-        return True
+        if self._onboarding is not None and not self._onboarding.is_operational():
+            if self._onboarding.current_phase().value == "voice":
+                return False
+        if self.seed.interview_active():
+            return True
+        return self.seed.needs_seed_gate()
 
     def personality_ready(self) -> bool:
-        return self.seed.mvp_complete() or self.personality.is_personality_ready()
+        return self.seed.profile_complete() or self.personality.is_personality_ready()
+
+    def onboarding_blocked_reason(self) -> str | None:
+        if self._onboarding is None or self._onboarding.is_operational():
+            return None
+        phase = self._onboarding.current_phase().value
+        if phase == "voice":
+            return "Complete voice enrollment before using C.O.B.R.A."
+        if phase == "seed" and self.seed.needs_seed_gate() and not self.seed.interview_active():
+            return "Complete the personality interview before using C.O.B.R.A."
+        return None
+
+    def onboarding_payload(self) -> dict[str, Any]:
+        if self._onboarding is None:
+            return {
+                "phase": "complete" if self.personality_ready() else "seed",
+                "voice_complete": True,
+                "personality_complete": self.personality_ready(),
+                "operational": self.personality_ready(),
+                "blocked_reason": "",
+            }
+        return self._onboarding.to_payload(blocked_reason=self.onboarding_blocked_reason() or "")
+
+    async def _onboarding_blocked_events(self, reason: str) -> list[WebSocketEvent]:
+        return [
+            WebSocketEvent.onboarding_step(
+                OnboardingStepPayload(
+                    phase=self._onboarding.current_phase().value if self._onboarding else "seed",
+                    voice_complete=bool(
+                        self._onboarding and self._onboarding.data.voice_enrollment_complete
+                    ),
+                    personality_complete=bool(
+                        self._onboarding and self._onboarding.data.personality_enrollment_complete
+                    ),
+                    operational=False,
+                    blocked_reason=reason,
+                )
+            ),
+            WebSocketEvent.message(
+                ChatMessage(sender="cobra", content=reason)
+            ),
+        ]
+
+    async def _maybe_auto_start_seed(self) -> list[WebSocketEvent] | None:
+        if self._onboarding is None:
+            return None
+        if self._onboarding.current_phase().value != "seed":
+            return None
+        if not self.seed.needs_seed_gate() or self.seed.interview_active():
+            return None
+        return await self._start_seed_interview("start personality interview")
+
+    def seed_export(self) -> dict[str, str]:
+        seed_state = ""
+        if self.seed.state_file.exists():
+            seed_state = self.seed.state_file.read_text(encoding="utf-8")
+        return {
+            "you_md": self.wiki.read("you"),
+            "seed_state": seed_state,
+            "you_history_md": self.living_doc.read_history(),
+        }
+
+    async def _start_seed_interview(self, user_text: str) -> list[WebSocketEvent]:
+        if self.seed.mvp_complete() and self.seed.optional_stages_remaining():
+            turn = self.seed.begin_optional_interview()
+        else:
+            turn = self.seed.begin_interview()
+        return self._seed_turn_to_events(turn, user_text=user_text)
+
+    async def _start_pe2_refresh(self, section: str, user_text: str) -> list[WebSocketEvent]:
+        turn = self.seed.begin_pe2_refresh(section)
+        return self._seed_turn_to_events(turn, user_text=user_text)
 
     async def _process_seed_input(self, text: str) -> list[WebSocketEvent]:
         self._response_in_progress = True
@@ -283,8 +448,12 @@ class BrainService:
             if (
                 self.seed.state.phase == InterviewPhase.ASKING
                 and not self.seed.state.awaiting_answer
+                and not self.seed.state.session_active
             ):
-                turn = self.seed.begin_interview()
+                if self.seed.mvp_complete() and self.seed.optional_stages_remaining():
+                    turn = self.seed.begin_optional_interview()
+                else:
+                    turn = self.seed.begin_interview()
                 user_text = ""
             else:
                 turn = self.seed.handle_input(text)
@@ -340,24 +509,91 @@ class BrainService:
             events.append(WebSocketEvent.message(ChatMessage(sender="cobra", content=message)))
 
         if turn.interview_complete:
-            events.append(
-                WebSocketEvent.seed_mode(
-                    SeedModePayload(active=False, resume_label="Interview complete")
+            if self.seed.profile_complete():
+                if self._onboarding is not None:
+                    self._onboarding.mark_personality_complete()
+                events.append(
+                    WebSocketEvent.seed_mode(
+                        SeedModePayload(
+                            active=False,
+                            resume_label="Interview complete",
+                            profile_complete=True,
+                            mvp_complete=True,
+                        )
+                    )
                 )
-            )
+                events.append(
+                    WebSocketEvent.onboarding_step_from_dict(self.onboarding_payload())
+                )
+            elif self.seed.mvp_complete():
+                self.seed.end_optional_interview()
+                events.append(WebSocketEvent.seed_mode(self._seed_mode_payload()))
+            else:
+                events.append(
+                    WebSocketEvent.seed_mode(
+                        SeedModePayload(active=False, resume_label="Interview complete")
+                    )
+                )
 
         return events
 
-    def _seed_mode_event(self) -> WebSocketEvent:
-        active = self.seed_mode_active
-        return WebSocketEvent.seed_mode(
-            SeedModePayload(
-                active=active,
-                stage=self.seed.state.current_stage.value,
-                phase=self.seed.state.phase.value,
-                resume_label=self.seed.resume_label() if active else "",
+    def _seed_mode_payload(self) -> SeedModePayload:
+        active = self.seed.interview_active()
+        optional_remaining = self.seed.optional_stages_remaining()
+        mvp_complete = self.seed.mvp_complete()
+        needs_resume = (
+            not active
+            and (
+                (not mvp_complete and bool(self.seed.state.completed_stages))
+                or (mvp_complete and optional_remaining)
             )
         )
+        show_banner = active or needs_resume or self.seed.needs_seed_gate()
+        resume = self.seed.resume_label()
+        if needs_resume and not resume:
+            resume = "Next dimension — resume"
+        return SeedModePayload(
+            active=show_banner,
+            stage=self.seed.state.current_stage.value,
+            phase=self.seed.state.phase.value,
+            resume_label=resume,
+            mvp_complete=mvp_complete,
+            optional_remaining=optional_remaining,
+            profile_complete=self.seed.profile_complete(),
+        )
+
+    def _seed_mode_event(self) -> WebSocketEvent:
+        return WebSocketEvent.seed_mode(self._seed_mode_payload())
+
+    def _parse_pe2_refresh(self, text: str) -> str | None:
+        stripped = text.strip()
+        if stripped.lower() == "pe2 interview":
+            return self.seed.stalest_pe2_section()
+        match = _REFRESH_PATTERN.match(stripped)
+        if not match:
+            return None
+        section = LivingDocumentManager.resolve_section_name(match.group(1).strip())
+        return section
+
+    def _parse_override(self, text: str) -> tuple[str, str] | None:
+        match = _OVERRIDE_PATTERN.match(text.strip())
+        if not match:
+            return None
+        section = LivingDocumentManager.resolve_section_name(match.group(1))
+        if section is None:
+            return None
+        return section, match.group(2).strip()
+
+    def _handle_override(self, section: str, content: str) -> list[WebSocketEvent]:
+        self.living_doc.apply_override(section, content)
+        message = (
+            f"Got it — I've updated **{section}** with your override. "
+            "That section is now authoritative and won't be auto-updated from sessions."
+        )
+        return [
+            WebSocketEvent.message(ChatMessage(sender="cobra", content=message)),
+            WebSocketEvent.seed_mode(self._seed_mode_payload()),
+        ]
 
     def _model_unavailable_events(self, message: str) -> list[WebSocketEvent]:
         wait_message = message or ModelLayer.LM_STUDIO_WAIT_MESSAGE

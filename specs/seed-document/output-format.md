@@ -46,9 +46,9 @@ Wiki subgraph mapping:
 | `W4` | Humor and Personality |
 | `W5` | Context-Specific Behavior |
 | `W6` | Observed Patterns (auto-populated) |
-| `W7` | Version history tracks all changes |
+| `W7` | Version history tracks all changes (`~/.cobra/wiki/you-history.md`) |
 
-`I12` Store dimension → `WIKI`.
+`I12` Store dimension → `WIKI` → `W7`.
 
 ## Inputs / Outputs
 
@@ -69,10 +69,11 @@ flowchart TD
 
 - Read-only in Chat UI wiki browser for display; C.O.B.R.A. writes via wiki ops.
 - [living-document.md](living-document.md) updates `W6` and other sections over time.
+- **Export:** `GET /api/seed/export` returns `you_md`, `seed_state`, and `you_history_md` JSON for backup.
 
 ## Open Items
 
-- [ ] Define whether the seed document can be exported for backup
+_None — export implemented via REST API._
 
 ## Cross-References
 

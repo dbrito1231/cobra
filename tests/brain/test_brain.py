@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,7 +19,15 @@ from brain.models import RawLogEntry
 from brain.privacy import PrivacyGate, contains_personal_context, sanitize_topic
 from brain.reasoning import ReasoningEngine
 from brain.router import Router
-from brain.seed_document import InterviewPhase, MVP_STAGES, SeedDocumentManager
+from brain.living_document import LivingDocumentManager
+from brain.seed_document import (
+    InterviewPhase,
+    InterviewStage,
+    MVP_STAGES,
+    STAGE_QUESTIONS,
+    SeedDocumentManager,
+    SeedTurnResult,
+)
 from brain.service import BrainService
 from brain.summarizer import SessionSummarizer
 from chat_ui.models import WebSocketEvent
@@ -60,7 +69,7 @@ def brain_service(config_reader: ConfigReader) -> BrainService:
 
 
 def mark_personality_ready(service: BrainService) -> None:
-    service.seed.state.completed_stages = [stage.value for stage in MVP_STAGES]
+    service.seed.state.completed_stages = [stage.value for stage in InterviewStage]
     service.seed._save_state()
     content = service.wiki.read("you")
     content = content.replace("(To be filled from seed document interview)", "Direct and concise.")
@@ -215,6 +224,13 @@ class TestModelLayer:
 
 
 class TestSeedDocument:
+    def _answer_stage(self, seed: SeedDocumentManager, answers: list[str]) -> SeedTurnResult:
+        last: SeedTurnResult = SeedTurnResult()
+        for answer in answers:
+            seed.handle_input(answer)
+            last = seed.handle_input("yes")
+        return last
+
     def test_state_machine_confirm_and_store(self, brain_dirs: dict[str, Path]) -> None:
         wiki = WikiStore(brain_dirs["wiki_dir"])
         config = BrainConfig.from_config_dict(
@@ -238,8 +254,14 @@ class TestSeedDocument:
         next_turn = seed.handle_input("yes")
         assert next_turn.events[0]["type"] == "seed_prompt"
 
-        seed.handle_input("Short messages work best.")
-        review_turn = seed.handle_input("yes")
+        remaining = [
+            "Short messages work best.",
+            "I open with context and close with next steps.",
+            "Short answers unless asked to go deep.",
+            "More formal with clients, casual with friends.",
+            "I say 'got it' and 'makes sense' a lot.",
+        ]
+        review_turn = self._answer_stage(seed, remaining)
         assert review_turn.phase == InterviewPhase.REVIEW
         assert review_turn.events[0]["type"] == "seed_summary_review"
 
@@ -253,14 +275,119 @@ class TestSeedDocument:
         wiki = WikiStore(brain_dirs["wiki_dir"])
         seed = SeedDocumentManager(wiki, brain_dirs["memory_dir"] / "seed_state.json")
         seed.begin_interview()
-        seed.handle_input("Direct and brief.")
-        seed.handle_input("yes")
-        seed.handle_input("Keep messages short.")
-        review = seed.handle_input("yes")
+        answers = [
+            "Direct and brief.",
+            "Short messages work best.",
+            "I open with context and close with next steps.",
+            "Short answers unless asked to go deep.",
+            "More formal with clients, casual with friends.",
+            "I say 'got it' a lot.",
+        ]
+        review = self._answer_stage(seed, answers)
         assert review.phase == InterviewPhase.REVIEW
         you_before = wiki.read("you")
         assert seed.state.pending_summary
         assert "(To be filled from seed document interview)" in you_before
+
+    def test_stage_questions_match_spec(self) -> None:
+        for stage in MVP_STAGES:
+            assert len(STAGE_QUESTIONS[stage]) == 6
+        assert len(STAGE_QUESTIONS[InterviewStage.CONTEXT_BEHAVIOR]) == 6
+
+    def test_mvp_complete_message_leaves_optional_stage(self, brain_dirs: dict[str, Path]) -> None:
+        wiki = WikiStore(brain_dirs["wiki_dir"])
+        seed = SeedDocumentManager(wiki, brain_dirs["memory_dir"] / "seed_state.json")
+        seed.state.current_stage = InterviewStage.HUMOR
+        seed.state.phase = InterviewPhase.REVIEW
+        seed.state.pending_summary = "Dry humor with direct delivery."
+        seed.state.completed_stages = [
+            InterviewStage.COMMUNICATION.value,
+            InterviewStage.DECISION_MAKING.value,
+            InterviewStage.VALUES.value,
+        ]
+        result = seed.handle_input("approve")
+        assert seed.mvp_complete()
+        assert seed.optional_stages_remaining()
+        assert any("MVP complete" in message for message in result.messages)
+
+    def test_begin_optional_interview_after_mvp(self, brain_dirs: dict[str, Path]) -> None:
+        wiki = WikiStore(brain_dirs["wiki_dir"])
+        seed = SeedDocumentManager(wiki, brain_dirs["memory_dir"] / "seed_state.json")
+        seed.state.completed_stages = [stage.value for stage in MVP_STAGES]
+        turn = seed.begin_optional_interview()
+        assert seed.state.optional_interview_active
+        assert turn.events[0]["type"] == "seed_prompt"
+
+    def test_mv3_prompt_once_per_day(self, brain_dirs: dict[str, Path]) -> None:
+        wiki = WikiStore(brain_dirs["wiki_dir"])
+        seed = SeedDocumentManager(wiki, brain_dirs["memory_dir"] / "seed_state.json")
+        seed.state.completed_stages = [stage.value for stage in MVP_STAGES]
+        assert seed.should_prompt_mv3()
+        seed.record_mv3_prompt()
+        assert not seed.should_prompt_mv3()
+
+    def test_one_dimension_per_session_ends_after_store(self, brain_dirs: dict[str, Path]) -> None:
+        wiki = WikiStore(brain_dirs["wiki_dir"])
+        living = LivingDocumentManager(
+            SeedDocumentManager(wiki, brain_dirs["memory_dir"] / "seed_state.json"),
+            None,
+            brain_dirs["wiki_dir"],
+        )
+        seed = living.seed
+        seed.set_living_doc(living)
+        seed.state.current_stage = InterviewStage.COMMUNICATION
+        seed.state.phase = InterviewPhase.REVIEW
+        seed.state.pending_summary = "Direct communicator."
+        seed.state.session_active = True
+        result = seed.handle_input("approve")
+        assert result.stored
+        assert not seed.state.session_active
+        assert not seed.interview_active()
+        assert seed.state.current_stage == InterviewStage.DECISION_MAKING
+        assert any("next session" in m.lower() for m in result.messages)
+
+    def test_seed_store_writes_version_history(self, brain_dirs: dict[str, Path]) -> None:
+        wiki = WikiStore(brain_dirs["wiki_dir"])
+        seed = SeedDocumentManager(wiki, brain_dirs["memory_dir"] / "seed_state.json")
+        living = LivingDocumentManager(seed, None, brain_dirs["wiki_dir"])
+        seed.set_living_doc(living)
+        seed._store_stage("Communication Style", "Direct and brief.", source="seed")
+        history = living.read_history()
+        assert "source: seed" in history.lower() or "**Source:** seed" in history
+
+    def test_pe2_refresh_interview(self, brain_dirs: dict[str, Path]) -> None:
+        wiki = WikiStore(brain_dirs["wiki_dir"])
+        seed = SeedDocumentManager(wiki, brain_dirs["memory_dir"] / "seed_state.json")
+        living = LivingDocumentManager(seed, None, brain_dirs["wiki_dir"])
+        seed.set_living_doc(living)
+        seed.state.completed_stages = [stage.value for stage in MVP_STAGES]
+        seed.write_section("Communication Style", "Direct.")
+        turn = seed.begin_pe2_refresh("Communication Style")
+        assert seed.state.pe2_refresh_active
+        assert turn.events[0]["type"] == "seed_prompt"
+        seed.handle_input("My style is more concise now.")
+        seed.handle_input("yes")
+        seed.handle_input("I use fewer words in email now.")
+        seed.handle_input("yes")
+        seed.handle_input("I skip small talk more often.")
+        review = seed.handle_input("yes")
+        assert review.phase == InterviewPhase.REVIEW
+        stored = seed.handle_input("approve")
+        assert stored.stored
+        assert "Communication Style" in seed.state.pe2_last_at
+        history = living.read_history()
+        assert "pe2" in history.lower()
+
+    def test_resume_after_restart(self, brain_dirs: dict[str, Path]) -> None:
+        state_file = brain_dirs["memory_dir"] / "seed_state.json"
+        wiki = WikiStore(brain_dirs["wiki_dir"])
+        seed = SeedDocumentManager(wiki, state_file)
+        seed.state.completed_stages = [InterviewStage.COMMUNICATION.value]
+        seed.state.current_stage = InterviewStage.DECISION_MAKING
+        seed._save_state()
+        reloaded = SeedDocumentManager(wiki, state_file)
+        assert reloaded.state.current_stage == InterviewStage.DECISION_MAKING
+        assert InterviewStage.COMMUNICATION.value in reloaded.state.completed_stages
 
 
 class TestBrainService:
@@ -298,6 +425,104 @@ class TestBrainService:
         assert "seed_mode" in types
         assert "seed_prompt" in types
         assert "pipeline_step" not in types
+        brain_service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_one_dimension_unblocks_pipeline_between_stages(
+        self, brain_service: BrainService
+    ) -> None:
+        brain_service.initialize()
+        living = brain_service.living_doc
+        brain_service.seed.set_living_doc(living)
+        brain_service.seed.state.current_stage = InterviewStage.COMMUNICATION
+        brain_service.seed.state.phase = InterviewPhase.REVIEW
+        brain_service.seed.state.pending_summary = "Direct."
+        brain_service.seed.state.session_active = True
+        await brain_service.process_input("approve")
+        assert brain_service.seed_mode_active
+        events = await brain_service.process_input("Hello")
+        types = {event.type for event in events}
+        assert "onboarding_step" in types or "seed_mode" in types
+        assert "pipeline_step" not in types
+        brain_service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_pe2_refresh_via_command(self, brain_service: BrainService) -> None:
+        brain_service.initialize()
+        mark_personality_ready(brain_service)
+        brain_service.seed.write_section("Communication Style", "Direct.")
+        brain_service.seed.state.completed_stages = [
+            stage.value for stage in MVP_STAGES
+        ]
+        brain_service.seed._save_state()
+        events = await brain_service.process_input("Refresh Communication Style")
+        types = {event.type for event in events}
+        assert "seed_prompt" in types
+        brain_service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_mv3_enqueued_after_pipeline(self, brain_service: BrainService) -> None:
+        brain_service.initialize()
+        mark_personality_ready(brain_service)
+        brain_service.seed.record_mv3_prompt()
+        from datetime import timedelta
+
+        brain_service.seed.state.last_mv3_prompt_at = (
+            datetime.now(timezone.utc) - timedelta(days=2)
+        ).isoformat()
+        events = await brain_service.process_input("Hello")
+        types = {event.type for event in events}
+        assert "proactive_queue" in types
+        brain_service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_optional_interview_via_command(self, brain_service: BrainService) -> None:
+        brain_service.initialize()
+        brain_service.seed.state.completed_stages = [stage.value for stage in MVP_STAGES]
+        brain_service.seed._save_state()
+        content = brain_service.wiki.read("you")
+        content = content.replace("(To be filled from seed document interview)", "Direct.")
+        brain_service.wiki.write("you", content)
+        events = await brain_service.process_input("continue personality interview")
+        types = {event.type for event in events}
+        assert "seed_prompt" in types
+        assert brain_service.seed.state.optional_interview_active
+        brain_service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_override_command(self, brain_service: BrainService) -> None:
+        brain_service.initialize()
+        mark_personality_ready(brain_service)
+        events = await brain_service.process_input(
+            "Override Communication Style: Always be brief and direct."
+        )
+        contents = [
+            event.payload.get("content", "")
+            for event in events
+            if event.type == "message"
+        ]
+        assert any("updated" in content.lower() for content in contents)
+        you = brain_service.wiki.read("you")
+        assert "Always be brief and direct." in you
+        assert "Communication Style" in brain_service.seed.state.overrides
+        brain_service.shutdown()
+
+    def test_seed_export(self, brain_service: BrainService) -> None:
+        brain_service.initialize()
+        export = brain_service.seed_export()
+        assert "you_md" in export
+        assert "seed_state" in export
+        assert "you_history_md" in export
+        brain_service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_mvp_complete_unblocks_pipeline(self, brain_service: BrainService) -> None:
+        brain_service.initialize()
+        mark_personality_ready(brain_service)
+        assert not brain_service.seed_mode_active
+        events = await brain_service.process_input("Hello")
+        types = {event.type for event in events}
+        assert "pipeline_step" in types
         brain_service.shutdown()
 
     @pytest.mark.asyncio

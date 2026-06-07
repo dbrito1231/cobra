@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from brain.models import ProactiveObservation
 
+SEED_MV3_ID = "seed-mv3"
+SEED_MV3_PREVIEW = (
+    "Your personality model is active. Complete the optional profile interview "
+    "when you have time — say \"continue personality interview\" to start."
+)
+PE2_REFRESH_ID_PREFIX = "pe2-refresh-"
+
 
 class ProactivityEngine:
     """Event-driven queue — dormant until conversation complete."""
@@ -68,3 +75,34 @@ class ProactivityEngine:
                     )
                 )
                 self._queue.sort(key=lambda item: item.priority, reverse=True)
+
+    def enqueue_seed_completion(self) -> None:
+        if any(item.id == SEED_MV3_ID for item in self._queue):
+            return
+        self._queue.insert(
+            0,
+            ProactiveObservation(
+                id=SEED_MV3_ID,
+                preview=SEED_MV3_PREVIEW,
+                priority=10,
+                trigger="seed",
+            ),
+        )
+
+    def enqueue_pe2_refresh(self, section: str) -> None:
+        item_id = f"{PE2_REFRESH_ID_PREFIX}{section.lower().replace(' ', '-')}"
+        if any(item.id == item_id for item in self._queue):
+            return
+        preview = (
+            f"It's a good time to refresh **{section}**. "
+            f'Say "Refresh {section}" to start a follow-up interview.'
+        )
+        self._queue.insert(
+            0,
+            ProactiveObservation(
+                id=item_id,
+                preview=preview,
+                priority=8,
+                trigger="pe2",
+            ),
+        )
